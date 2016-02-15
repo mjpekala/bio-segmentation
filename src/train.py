@@ -1,5 +1,7 @@
 """  Trains a CNN for dense (i.e. per-pixel) classification problems.
 
+Note: a current assumption is that the input image data is a single channel
+      (ie grayscale).
 """
 
 __author__ = "Mike Pekala"
@@ -8,8 +10,12 @@ __license__ = "Apache 2.0"
 
 
 import sys, os.path
+import time
+import random
 import argparse
 import logging
+import numpy as np
+import pdb
 
 from keras.optimizers import SGD
 
@@ -75,9 +81,133 @@ def _train_mode_args():
 
 
 
-def _train_one_epoch(model, Xtrain, Ytrain):
-    pass
-    
+def _xform_minibatch(X):
+    """Implements synthetic data augmentation by randomly appling
+    an element of the group of symmetries of the square toa single mini-batch
+    of data.
+
+    The default set of data augmentation operations correspond to
+    the symmetries of the square (a non abelian group).  The
+    elements of this group are:
+
+      o four rotations (0, pi/2, pi, 3*pi/4)
+        Denote these by: R0 R1 R2 R3
+
+      o two mirror images (about y-axis or x-axis)
+        Denote these by: M1 M2
+
+      o two diagonal flips (about y=-x or y=x)
+        Denote these by: D1 D2
+
+    This page has a nice visual depiction:
+      http://www.cs.umb.edu/~eb/d4/
+
+
+    Parameters: 
+       X := Mini-batch data (#examples, #channels, rows, colums) 
+    """
+
+    def R0(X):
+        return X  # this is the identity map
+
+    def M1(X):
+        return X[:,:,::-1,:]
+
+    def M2(X): 
+        return X[:,:,:,::-1]
+
+    def D1(X):
+        return np.transpose(X, [0, 1, 3, 2])
+
+    def R1(X):
+        return D1(M2(X))   # = rot90 on the last two dimensions
+
+    def R2(X):
+        return M2(M1(X))
+
+    def R3(X): 
+        return D2(M2(X))
+
+    def D2(X):
+        return R1(M1(X))
+
+
+    symmetries = [R0, R1, R2, R3, M1, M2, D1, D2]
+    op = random.choice(symmetries) 
+        
+    # For some reason, the implementation of row and column reversals, 
+    #     e.g.      X[:,:,::-1,:]
+    # break PyCaffe.  Numpy must be doing something under the hood 
+    # (e.g. changing from C order to Fortran order) to implement this 
+    # efficiently which is incompatible w/ PyCaffe.  
+    # Hence the explicit construction of X2 with order 'C' below.
+    X2 = np.zeros(X.shape, dtype=np.float32, order='C') 
+    X2[...] = op(X)
+
+    return X2
+
+
+
+def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
+    # Pre-allocate some variables & storage.
+
+    # assuming square tiles with odd dimension
+    rows, cols = model.input_shape[2:4]
+    assert(rows == cols)
+    assert(np.mod(rows,2) == 1)
+    tileRadius = int(rows/2)
+
+    nChannels = 1  # could relax this assumption later
+    Xi = np.zeros((batchSize, nChannels, rows, cols), dtype=np.float32)
+    yi = np.zeros(batchSize, dtype=np.float32)
+    yMax = np.max(Y).astype(np.int32)
+
+    # some variables we'll use for reporting progress    
+    lastChatter = -2
+    startTime = time.time()
+    accBuffer = np.zeros(10)
+
+    it = emlib.stratified_interior_pixel_generator(Y,
+                                                   tileRadius,
+                                                   batchSize,
+                                                   omitLabels=omitLabels) 
+
+    for ii, (Idx, epochPct) in enumerate(it): 
+        # Map the indices Idx -> tiles Xi and labels yi 
+        # 
+        # Note: if Idx.shape[0] < batchDim[0] (last iteration of an epoch) 
+        # a few examples from the previous minibatch will be "recycled" here. 
+        # This is intentional (to keep batch sizes consistent even if data 
+        # set size is not a multiple of the minibatch size). 
+        # 
+        for jj in range(Idx.shape[0]): 
+            a = Idx[jj,1] - tileRadius 
+            b = Idx[jj,1] + tileRadius + 1 
+            c = Idx[jj,2] - tileRadius 
+            d = Idx[jj,2] + tileRadius + 1 
+            Xi[jj, 0, :, :] = X[ Idx[jj,0], a:b, c:d ]
+            yi[jj] = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
+
+        # label-preserving data transformation (synthetic data generation)
+        Xi = _xform_minibatch(Xi)
+
+        assert(not np.any(np.isnan(Xi)))
+        assert(not np.any(np.isnan(yi)))
+
+        loss, acc = model.train_on_batch(Xi, yi, accuracy=True)
+        accBuffer[np.mod(ii, len(accBuffer))] = acc
+        print accBuffer # TEMP
+
+        #----------------------------------------
+        # Some events occur on regular intervals.
+        # Address these here.
+        #----------------------------------------
+        elapsed = (time.time() - startTime) / 60.0
+        if (lastChatter+2) < elapsed:  # notify progress every 2 min
+            lastChatter = elapsed
+            logger.info("we are %0.2f%% complete with this epoch" % (100.*epochPct))
+            logger.info("recently accuracy was: %0.2f" % np.mean(accBuffer))
+                
 
 
 if __name__ == "__main__":
@@ -90,7 +220,9 @@ if __name__ == "__main__":
     ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
     logger.addHandler(ch)
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # load training and validation volumes
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Xtrain = emlib.load_cube(args.emTrainFile)
     Ytrain = emlib.load_cube(args.labelsTrainFile)
     if args.trainSlices:
@@ -106,13 +238,24 @@ if __name__ == "__main__":
     logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
     logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
 
+    # TODO: correct training labels and normalize data.
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # create and configure CNN
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # XXX: make configurable via command line?
     model = emm.ciresan_n3()
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Do training
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     for epoch in range(args.nEpochs):
         logger.info('starting training epoch %d' % epoch);
+        _train_one_epoch(logger, model, Xtrain, Ytrain, args.omitLabels)
     
+        logger.info('epoch %d complete. validating...' % epoch);
         #model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
+        
+        logger.info('TODO')
