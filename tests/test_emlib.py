@@ -29,6 +29,14 @@ class TestEmlib(unittest.TestCase):
         self.assertAlmostEqual(prec, prec2[1])
         self.assertAlmostEqual(recall, recall2[1])
         self.assertAlmostEqual(f1, f12[1])
+
+        
+    def test_number_classes(self):
+        y = np.array([-10, 10, 1, 3])
+        yn = emlib.number_classes(y, [-10])
+        self.assertTrue(np.all(yn == [-1, 2, 0, 1]))
+        yn = emlib.number_classes(y)
+        self.assertTrue(np.all(yn == [0, 3, 1, 2]))
         
     
     def test_mirror_edges(self):
