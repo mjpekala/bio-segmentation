@@ -1,4 +1,13 @@
 """ Functions for working with image data volumes.
+
+The functions in this module all assume an image volume has dimensions:
+      #slices x width x height
+      
+The choice to have the z dimension first is for compatability with numpy's slicing,
+which implicitly squeezes 3d to 2d when dimensions are ordered this way.
+This feels a little backwards if you are used to working in Matlab and if you
+use matplotlib.
+
 """
 
 __author__ = "Mike Pekala"
@@ -50,7 +59,7 @@ def load_cube(dataFile, dtype='float32'):
         # assumpy numpy serialized object
         return np.load(dataFile).astype(dtype)
  
-    
+
 
 def load_tiff_data(dataFile, dtype='float32'):
     """ Loads data from a multilayer .tif file.
@@ -96,29 +105,6 @@ def save_tiff_data(X, outDir, baseName='X_'):
 
 
 
-def infer_data_dimensions(netFn):
-    """Determine the size of the Caffe input data tensor.
-
-    There may be a cleaner way to do this through the pycaffe API (e.g. via the
-    network parameters protobuf object).
-    """
-    with open(netFn, 'r') as f:
-        contents = "".join(f.readlines())
-
-    dimNames = ['batch_size', 'channels', 'height', 'width']
-    dimensions = np.zeros((4,), dtype=np.int32)
-
-    for ii, dn in enumerate(dimNames):
-        pat = r'%s:\s*(\d+)' % dn
-        mo = re.search(pat, contents)
-        if mo is None:
-            raise RuntimeError('Unable to extract "%s" from network file "%s"' % (dn, netFn))
-        dimensions[ii] = int(mo.groups()[0])
-        
-    return dimensions
-
-
-
 def label_epsilon(Y, epsilon=3, n=9, targetClass=255, verbose=True):
     """Given a tensor of per-pixel class labels, return a new tensor of labels
     where the class is 1 iff at least n pixels in an epsilon ball are the target class.
@@ -156,7 +142,8 @@ def label_epsilon(Y, epsilon=3, n=9, targetClass=255, verbose=True):
     return (Yeps >= n)
 
 
-def fix_class_labels(Yin, omitLabels):
+
+def number_classes(Yin, omitLabels=[]):
     """Class labels must be contiguous natural numbers starting at 0.
     This is because they are mapped to indices at the output of the CNN.
     This function remaps the input y values if needed.
