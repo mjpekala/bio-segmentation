@@ -245,13 +245,13 @@ if __name__ == "__main__":
 
     # rescale features to live in [0 1]
     xMin = np.min(Xtrain);  xMax = np.max(Xtrain)
-    Xtrain = (Xtrain - xMin) * (xMax - xMin)
-    Xvalid = (Xvalid - xMin) * (xMax - xMin)
+    Xtrain = (Xtrain - xMin) / (xMax - xMin)
+    Xvalid = (Xvalid - xMin) / (xMax - xMin)
 
     logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
-    logger.info('training values min/max:      %d, %d' % (np.min(Xtrain), np.max(Xtrain)))
+    logger.info('training values min/max:      %g, %g' % (np.min(Xtrain), np.max(Xtrain)))
     logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
-    logger.info('validation values min/max:    %d, %d' % (np.min(Xvalid), np.max(Xvalid)))
+    logger.info('validation values min/max:    %g, %g' % (np.min(Xvalid), np.max(Xvalid)))
 
     # remap class labels to consecutive natural numbers
     Ytrain = emlib.number_classes(Ytrain, args.omitLabels)
