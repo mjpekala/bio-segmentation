@@ -19,5 +19,9 @@ train-isbi :
 		--num-batches-per-epoch 1000 \
 		--out-dir $(OUT_DIR)
 
+test :
+	PYTHONPATH=./src $(PY) ./tests/test_emlib.py
+
+
 clean :
 	\rm -rf $(OUT_DIR)
