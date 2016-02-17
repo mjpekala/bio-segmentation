@@ -159,21 +159,25 @@ def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
 
     nChannels = 1  # could relax this assumption later
     Xi = np.zeros((batchSize, nChannels, rows, cols), dtype=np.float32)
-    yi = np.zeros(batchSize, dtype=np.float32)
-    yMax = np.max(Y).astype(np.int32)
+
+    # with the Theano backend, it seems the codes are expecting
+    # one hot vectors as class labels.
+    yAll = np.unique(Y).astype(np.int32)
+    assert(np.min(yAll) == 0);  assert(np.max(yAll) == (len(yAll)-1))
+    yi = np.zeros((batchSize, len(yAll)), dtype=np.float32)
 
     # some variables we'll use for reporting progress    
     lastChatter = -2
     startTime = time.time()
-    accBuffer = np.zeros(10)
-    lossBuffer = np.zeros(accBuffer.shape)
+    accBuffer = np.nan*np.ones(10)
+    lossBuffer = np.nan*np.ones(accBuffer.shape)
 
     it = emlib.stratified_interior_pixel_generator(Y,
                                                    tileRadius,
                                                    batchSize,
                                                    omitLabels=omitLabels) 
 
-    for ii, (Idx, epochPct) in enumerate(it): 
+    for mbIdx, (Idx, epochPct) in enumerate(it): 
         # Map the indices Idx -> tiles Xi and labels yi 
         # 
         # Note: if Idx.shape[0] < batchDim[0] (last iteration of an epoch) 
@@ -187,7 +191,8 @@ def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
             c = Idx[jj,2] - tileRadius 
             d = Idx[jj,2] + tileRadius + 1 
             Xi[jj, 0, :, :] = X[ Idx[jj,0], a:b, c:d ]
-            yi[jj] = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
+            yj = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
+            yi[jj,:] = 0;  yi[jj,yj] = 1
 
         # label-preserving data transformation (synthetic data generation)
         Xi = _xform_minibatch(Xi)
@@ -195,9 +200,10 @@ def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
         assert(not np.any(np.isnan(Xi)))
         assert(not np.any(np.isnan(yi)))
 
+        # do training
         loss, acc = model.train_on_batch(Xi, yi, accuracy=True)
-        accBuffer[np.mod(ii, len(accBuffer))] = acc
-        lossBuffer[np.mod(ii, len(lossBuffer))] = loss
+        accBuffer[np.mod(mbIdx, len(accBuffer))] = acc
+        lossBuffer[np.mod(mbIdx, len(lossBuffer))] = loss
 
         #----------------------------------------
         # Some events occur on regular intervals.
@@ -206,15 +212,16 @@ def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
         elapsed = (time.time() - startTime) / 60.0
         if (lastChatter+2) < elapsed:  # notify progress every 2 min
             lastChatter = elapsed
+            logger.info("just completed mini-batch %d" % mbIdx)
             logger.info("we are %0.2f%% complete with this epoch" % (100.*epochPct))
-            logger.info("recently accuracy was: %0.2f" % np.mean(accBuffer))
+            logger.info("recent accuracy, loss: %0.2f, %0.2f" % (np.mean(accBuffer), np.mean(lossBuffer)))
                 
 
 
 if __name__ == "__main__":
     args = _train_mode_args()
     
-    # whoever designed the logging module must have been a java programmer...
+    # setup logging
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
@@ -236,20 +243,28 @@ if __name__ == "__main__":
         Xvalid = Xvalid[args.validSlices,:,:]
         Yvalid = Yvalid[args.validSlices,:,:]
 
-    logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
-    logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
+    # rescale features to live in [0 1]
+    xMin = np.min(Xtrain);  xMax = np.max(Xtrain)
+    Xtrain = (Xtrain - xMin) * (xMax - xMin)
+    Xvalid = (Xvalid - xMin) * (xMax - xMin)
 
-    # TODO: correct training labels and normalize data.
+    logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
+    logger.info('training values min/max:      %d, %d' % (np.min(Xtrain), np.max(Xtrain)))
+    logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
+    logger.info('validation values min/max:    %d, %d' % (np.min(Xvalid), np.max(Xvalid)))
+
+    # remap class labels to consecutive natural numbers
     Ytrain = emlib.number_classes(Ytrain, args.omitLabels)
     Yvalid = emlib.number_classes(Yvalid, args.omitLabels)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # create and configure CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # XXX: make configurable via command line?
+    # TODO: make network configurable via command line
+    logger.info('creating CNN')
     model = emm.ciresan_n3()
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss='categorical_crossentropy', optimizer=sgd)
+    model.compile(loss='categorical_crossentropy', class_mode='binary', optimizer=sgd)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Do training
@@ -262,3 +277,6 @@ if __name__ == "__main__":
         #model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
         
         logger.info('TODO')
+
+
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
