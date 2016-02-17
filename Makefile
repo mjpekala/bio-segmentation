@@ -27,6 +27,7 @@ default :
 	@echo ""
 
 
+
 train-isbi :
 	$(PY) ./src/train.py \
 		--x-train $(ISBI)/train-volume.tif \
@@ -39,12 +40,15 @@ train-isbi :
 		$(TRAIN_FLAGS)
 
 
+
 deploy-isbi :
 	$(PY) ./src/deploy.py \
 		--x $(ISBI)/test-volume.tif \
 		--slices "range(0,5)" \
 		--weight-file $(OUT_DIR)/weights_epoch_002.h5 \
+		--eval-pct .1 \
 		--out-file $(OUT_DIR)/Yhat_test.npy
+
 
 
 test :
