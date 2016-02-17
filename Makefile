@@ -20,9 +20,10 @@ TRAIN_FLAGS=$(TRAIN_QUICK)
 default :
 	@echo ""
 	@echo "Targets supported by this makefile:"
-	@echo "   train-isbi : trains a model for ISBI 2012 data set"
-	@echo "   test       : runs unit tests"
-	@echo "   clean      : deletes any previously trained models"
+	@echo "   train-isbi  : trains a model using ISBI 2012 data set"
+	@echo "   deploy-isbi : evaluate ISBI 2012 test data"
+	@echo "   test        : runs unit tests"
+	@echo "   clean       : deletes any previously trained models"
 	@echo ""
 
 
@@ -36,6 +37,15 @@ train-isbi :
 		--valid-slices "[29,]"  \
 		--out-dir $(OUT_DIR) \
 		$(TRAIN_FLAGS)
+
+
+deploy-isbi :
+	$(PY) ./src/deploy.py \
+		--x $(ISBI)/test-volume.tif \
+		--slices "range(0,5)" \
+		--weight-file $(OUT_DIR)/weights_epoch_002.h5 \
+		--out-file $(OUT_DIR)/Yhat_test.npy
+
 
 test :
 	PYTHONPATH=./src $(PY) ./tests/test_emlib.py
