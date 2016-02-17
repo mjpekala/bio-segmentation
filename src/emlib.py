@@ -8,6 +8,7 @@ which implicitly squeezes 3d to 2d when dimensions are ordered this way.
 This feels a little backwards if you are used to working in Matlab and if you
 use matplotlib.
 
+TODO: use loggers instead of printing to stdout
 """
 
 __author__ = "Mike Pekala"
@@ -144,9 +145,9 @@ def label_epsilon(Y, epsilon=3, n=9, targetClass=255, verbose=True):
 
 
 def number_classes(Yin, omitLabels=[]):
-    """Class labels must be contiguous natural numbers starting at 0.
-    This is because they are mapped to indices at the output of the CNN.
-    This function remaps the input y values if needed.
+    """Remaps class labels to contiguous natural numbers starting at 0.
+    In many frameworks (e.g. caffe) class labels are mapped to indices at
+    the output of the CNN; hence this remapping.
 
     Any pixels that should be ignored will have class label of -1.
     """
