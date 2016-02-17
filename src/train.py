@@ -73,7 +73,7 @@ def _train_mode_args():
     parser.add_argument('--num-epochs', dest='nEpochs', 
 		    type=int, default=30,
 		    help='number of training epochs')
-    parser.add_argument('--num-batches-per-epoch', dest='nBatches', 
+    parser.add_argument('--num-mb-per-epoch', dest='nBatches', 
 		    type=int, default=sys.maxint,
 		    help='maximum number of mini-batches to process each epoch')
 
@@ -185,6 +185,7 @@ def _minibatch_setup(model, batchSize):
 
 
 
+
 def _train_one_epoch(logger, model, X, Y, 
                      omitLabels, 
                      batchSize=100,
@@ -205,8 +206,8 @@ def _train_one_epoch(logger, model, X, Y,
     # some variables we'll use for reporting progress    
     lastChatter = -2
     startTime = time.time()
-    accBuffer = np.nan*np.ones(10)
-    lossBuffer = np.nan*np.ones(accBuffer.shape)
+    accBuffer = []
+    lossBuffer = []
 
     #----------------------------------------
     # Loop over mini-batches
@@ -241,8 +242,7 @@ def _train_one_epoch(logger, model, X, Y,
 
         # do training
         loss, acc = model.train_on_batch(Xi, yi, accuracy=True)
-        accBuffer[np.mod(mbIdx, len(accBuffer))] = acc
-        lossBuffer[np.mod(mbIdx, len(lossBuffer))] = loss
+        accBuffer.append(acc);  lossBuffer.append(loss)
 
 
         #----------------------------------------
@@ -250,17 +250,28 @@ def _train_one_epoch(logger, model, X, Y,
         # Address these here.
         #----------------------------------------
         elapsed = (time.time() - startTime) / 60.0
-        if (mbIdx > len(accBuffer)) and ((lastChatter+2) < elapsed):  
+        if (lastChatter+2) < elapsed:  
             # notify progress every 2 min
             lastChatter = elapsed
+
+            if len(accBuffer) < 10:
+                recentAcc = np.mean(accBuffer)
+                recentLoss = np.mean(lossBuffer)
+            else:
+                recentAcc = np.mean(accBuffer[-10:])
+                recentLoss = np.mean(lossBuffer[-10:])
+
             logger.info("  just completed mini-batch %d" % mbIdx)
             logger.info("  we are %0.2f%% complete with this epoch" % (100.*epochPct))
-            logger.info("  recent accuracy, loss: %0.2f, %0.2f" % (np.mean(accBuffer), np.mean(lossBuffer)))
+            logger.info("  recent accuracy, loss: %0.2f, %0.2f" % (recentAcc, recentLoss))
 
         if mbIdx >= nBatches:
             logger.info("  maximum number of mini-batches per epoch reached. Ending this training epoch early.")
-            return
+            break
 
+
+    # return statistics
+    return accBuffer, lossBuffer
 
 
 
