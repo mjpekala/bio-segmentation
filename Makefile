@@ -1,11 +1,12 @@
 
-
+#PY=ipython -i --
+PY=python
 
 ISBI=./data/ISBI2012
 
 
 train-isbi :
-	python ./src/train.py \
+	$(PY) ./src/train.py \
 		--x-train $(ISBI)/train-volume.tif \
 		--train-slices "range(0,27)" \
 		--y-train $(ISBI)/train-labels.tif \
