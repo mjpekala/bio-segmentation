@@ -11,12 +11,21 @@ OUT_DIR=./Models/ISBI2012
 # Use TRAIN_QUICK to make sure training runs end-to-end; use TRAIN_FULL
 # if you want a reasonable model.
 # 
-TRAIN_QUICK=--num-batches-per-epoch 10000 --num-epochs 3
+TRAIN_QUICK=--num-batches-per-epoch 100000 --num-epochs 3
 TRAIN_FULL=--num-epochs 30
 TRAIN_FLAGS=$(TRAIN_QUICK)
 
 
 #-------------------------------------------------------------------------------
+default :
+	@echo ""
+	@echo "Targets supported by this makefile:"
+	@echo "   train-isbi : trains a model for ISBI 2012 data set"
+	@echo "   test       : runs unit tests"
+	@echo "   clean      : deletes any previously trained models"
+	@echo ""
+
+
 train-isbi :
 	$(PY) ./src/train.py \
 		--x-train $(ISBI)/train-volume.tif \
@@ -27,7 +36,6 @@ train-isbi :
 		--valid-slices "[29,]"  \
 		--out-dir $(OUT_DIR) \
 		$(TRAIN_FLAGS)
-
 
 test :
 	PYTHONPATH=./src $(PY) ./tests/test_emlib.py
