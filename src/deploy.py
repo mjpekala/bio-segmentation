@@ -99,18 +99,28 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
     # Pre-allocate some variables & storage.
     #----------------------------------------
     Xi, unused, tileRadius = _minibatch_setup(model, batchSize)
-    Prob = np.nan * np.ones(X.shape, dtype=np.float32)
 
     lastChatter = -2
     startTime = time.time()
 
+    # identify subset of volume to evaluate
     Mask = _downsample_mask(X, evalPct)
     logger.info('after masking, will evaluate %0.2f%% of data' % (100.0*np.sum(Mask)/Mask.size))
+
+    # Mirror edges (so that we can evaluate the entire volume)
+    Xm = emlib.mirror_edges(X, tileRadius)
+    Prob = np.nan * np.ones(Xm.shape, dtype=np.float32)
+
+    Mask = emlib.mirror_edges(Mask, tileRadius)
+    Mask[:,0:tileRadius,:] = False
+    Mask[:,-tileRadius:,:] = False
+    Mask[:,:,0:tileRadius] = False
+    Mask[:,:,-tileRadius:] = False
 
     #----------------------------------------
     # Loop over mini-batches
     #----------------------------------------
-    it = emlib.interior_pixel_generator(X, tileRadius, batchSize, mask=Mask)
+    it = emlib.interior_pixel_generator(Xm, tileRadius, batchSize, mask=Mask)
 
     for mbIdx, (Idx, epochPct) in enumerate(it): 
         n = Idx.shape[0] # may be < batchSize on final iteration
@@ -121,7 +131,7 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
             b = Idx[jj,1] + tileRadius + 1 
             c = Idx[jj,2] - tileRadius 
             d = Idx[jj,2] + tileRadius + 1 
-            Xi[jj, 0, :, :] = X[ Idx[jj,0], a:b, c:d ]
+            Xi[jj, 0, :, :] = Xm[ Idx[jj,0], a:b, c:d ]
 
         prob = model.predict_on_batch(Xi)
         Prob[Idx[:,0], Idx[:,1], Idx[:,2]] = prob[0][:n,1]
@@ -132,6 +142,8 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
             lastChatter = elapsed
             logger.info("  last pixel %s (%0.2f%% complete)" % (str(Idx[-1,:]), 100.*epochPct))
 
+    # discard mirrored portion before returning
+    Prob = Prob[:, tileRadius:-tileRadius, tileRadius:-tileRadius]
     return Prob
 
 
