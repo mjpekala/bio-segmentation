@@ -5,7 +5,7 @@
 PY=PYTHONPATH=./src:./src/thirdparty python
 
 ISBI=./data/ISBI2012
-OUT_DIR=./Models/ISBI2012_quick
+OUT_DIR=./Models/ISBI2012
 
 
 # Use TRAIN_QUICK to make sure training runs end-to-end; use TRAIN_FULL
@@ -13,8 +13,9 @@ OUT_DIR=./Models/ISBI2012_quick
 # 
 TRAIN_QUICK=--num-mb-per-epoch 500 --num-epochs 1
 TRAIN_FULL=--num-epochs 30
-TRAIN_FLAGS=$(TRAIN_QUICK)
+TRAIN_FLAGS=$(TRAIN_FULL)
 
+# TODO: update this once training finishes
 WEIGHT_FILE=$(OUT_DIR)/weights_epoch_000.h5 \
 
 
