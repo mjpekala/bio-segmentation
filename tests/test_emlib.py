@@ -37,8 +37,8 @@ class TestEmlib(unittest.TestCase):
         self.assertTrue(np.all(yn == [-1, 2, 0, 1]))
         yn = emlib.number_classes(y)
         self.assertTrue(np.all(yn == [0, 3, 1, 2]))
-        
-    
+
+
     def test_mirror_edges(self):
         X = np.random.rand(10,3,3);
         b = 2  # b := border size
@@ -53,7 +53,19 @@ class TestEmlib(unittest.TestCase):
         self.assertTrue(np.all(Xm[:,:,b-1] == Xm[:,:,b]))
         self.assertTrue(np.all(Xm[:, b:-b, b:-b] == X))
 
-        
+        ## another test case
+        X = np.zeros((1,10,10))
+        X[0,2,:] = 1
+        Xm = emlib.mirror_edges(X, 3)
+        self.assertTrue(np.all(Xm[0,0,:] == 1))
+        self.assertTrue(np.all(Xm[0,1,:] == 0))
+        self.assertTrue(np.all(Xm[0,2,:] == 0))
+        self.assertTrue(np.all(Xm[0,3,:] == 0))
+        self.assertTrue(np.all(Xm[0,4,:] == 0))
+        self.assertTrue(np.all(Xm[0,5,:] == 1))
+        self.assertTrue(np.all(Xm[0,6,:] == 0))
+
+
     def test_interior_pixel_generator(self):
         b = 10  # b := border size
         Z = np.zeros((2,100,100), dtype=np.int32)
