@@ -13,7 +13,7 @@ OUT_DIR=./Models/ISBI2012
 # 
 TRAIN_QUICK=--num-batches-per-epoch 100000 --num-epochs 3
 TRAIN_FULL=--num-epochs 30
-TRAIN_FLAGS=$(TRAIN_QUICK)
+TRAIN_FLAGS=$(TRAIN_FULL)
 
 
 #-------------------------------------------------------------------------------
@@ -25,6 +25,8 @@ default :
 	@echo "   test        : runs unit tests"
 	@echo "   clean       : deletes any previously trained models"
 	@echo ""
+	@echo "Training can take a long time.  You may want to do e.g."
+	@echo "  (nohup make train-isbi &) > train.out"
 
 
 
