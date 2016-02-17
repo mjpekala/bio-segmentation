@@ -1,8 +1,11 @@
+# Example showing how to use the provided codes to train/deploy on ISBI 2012.
+
 
 #PY=ipython -i --
 PY=python
 
 ISBI=./data/ISBI2012
+OUT_DIR=./Models/ISBI2012
 
 
 train-isbi :
@@ -13,5 +16,8 @@ train-isbi :
 		--x-valid $(ISBI)/train-volume.tif \
 		--y-valid $(ISBI)/train-labels.tif \
 		--valid-slices "[27, 28, 29]"  \
-		--out-dir ./Models/ISBI2012
+		--num-batches-per-epoch 1000 \
+		--out-dir $(OUT_DIR)
 
+clean :
+	\rm -rf $(OUT_DIR)
