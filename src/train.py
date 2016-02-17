@@ -395,5 +395,7 @@ if __name__ == "__main__":
         estFile = os.path.join(args.outDir, "validation_epoch_%03d.npy" % epoch)
         np.save(estFile, Prob)
 
+        loger.info('Finished!')
+
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
