@@ -1,14 +1,15 @@
 """ Functions for working with image data volumes.
 
-The functions in this module all assume an image volume has dimensions:
+ The functions in this module all assume an image volume has dimensions:
       #slices x width x height
       
-The choice to have the z dimension first is for compatability with numpy's slicing,
-which implicitly squeezes 3d to 2d when dimensions are ordered this way.
-This feels a little backwards if you are used to working in Matlab and if you
-use matplotlib.
-
-TODO: use loggers instead of printing to stdout
+ The choice to have the z dimension first is for compatability with 
+ numpy's slicing, which implicitly squeezes 3d to 2d when dimensions are 
+ ordered this way.  It's also how most of the CNN tools expect dimensions
+ to be ordered (well, technically they expect a tensor with dimensions
+      #slices x #channels x width x height
+ but for now we assume single channel data.  This single channel assumption 
+ would not be terribly diffcult to relax).
 """
 
 __author__ = "Mike Pekala"
@@ -250,9 +251,9 @@ def stratified_interior_pixel_generator(Y, borderSize, batchSize,
     # Determine how many instances of each class to report
     # (the minimum over the total number)
     cnt = [np.sum( (Y==y) & bitMask ) for y in yAll]
-    print('[emlib]: num. pixels per class label is: %s' % str(cnt))
+    #print('[emlib]: num. pixels per class label is: %s' % str(cnt))
     cnt = min(cnt)
-    print('[emlib]: will draw %d samples from each class' % cnt)
+    #print('[emlib]: will draw %d samples from each class' % cnt)
 
     # Stratified sampling
     Idx = np.zeros((0,3), dtype=np.int32)  # three columns because there are 3 dimensions in the tensor
