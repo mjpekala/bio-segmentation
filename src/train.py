@@ -166,6 +166,7 @@ def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
     lastChatter = -2
     startTime = time.time()
     accBuffer = np.zeros(10)
+    lossBuffer = np.zeros(accBuffer.shape)
 
     it = emlib.stratified_interior_pixel_generator(Y,
                                                    tileRadius,
@@ -196,7 +197,7 @@ def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
 
         loss, acc = model.train_on_batch(Xi, yi, accuracy=True)
         accBuffer[np.mod(ii, len(accBuffer))] = acc
-        print accBuffer # TEMP
+        lossBuffer[np.mod(ii, len(lossBuffer))] = loss
 
         #----------------------------------------
         # Some events occur on regular intervals.
@@ -239,6 +240,8 @@ if __name__ == "__main__":
     logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
 
     # TODO: correct training labels and normalize data.
+    Ytrain = emlib.number_classes(Ytrain, args.omitLabels)
+    Yvalid = emlib.number_classes(Yvalid, args.omitLabels)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # create and configure CNN
