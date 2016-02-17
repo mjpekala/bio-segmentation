@@ -224,7 +224,7 @@ def _train_one_epoch(logger, model, X, Y,
             logger.info("we are %0.2f%% complete with this epoch" % (100.*epochPct))
             logger.info("recent accuracy, loss: %0.2f, %0.2f" % (np.mean(accBuffer), np.mean(lossBuffer)))
 
-        if mpIdx >= nBatches:
+        if mbIdx >= nBatches:
             logger.info("maximum number of mini-batches per epoch reached. Ending this training epoch early.")
             return
 
