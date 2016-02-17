@@ -215,7 +215,8 @@ def _train_one_epoch(logger, model, X, Y,
     it = emlib.stratified_interior_pixel_generator(Y,
                                                    tileRadius,
                                                    batchSize,
-                                                   omitLabels=omitLabels) 
+                                                   omitLabels=omitLabels,
+                                                   stopAfter=nBatches*batchSize) 
 
     for mbIdx, (Idx, epochPct) in enumerate(it): 
         # Map the indices Idx -> tiles Xi and labels yi 
@@ -262,13 +263,8 @@ def _train_one_epoch(logger, model, X, Y,
                 recentLoss = np.mean(lossBuffer[-10:])
 
             logger.info("  just completed mini-batch %d" % mbIdx)
-            logger.info("  we are %0.2f%% complete with this epoch" % (100.*epochPct))
+            logger.info("  we are %0.2g%% complete with this epoch" % (100.*epochPct))
             logger.info("  recent accuracy, loss: %0.2f, %0.2f" % (recentAcc, recentLoss))
-
-        if mbIdx >= nBatches:
-            logger.info("  maximum number of mini-batches per epoch reached. Ending this training epoch early.")
-            break
-
 
     # return statistics
     return accBuffer, lossBuffer
@@ -378,14 +374,19 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     for epoch in range(args.nEpochs):
         logger.info('starting training epoch %d' % epoch);
-        _train_one_epoch(logger, model, Xtrain, Ytrain, args.omitLabels,
-                         nBatches=args.nBatches)
+        acc, loss = _train_one_epoch(logger, model, Xtrain, Ytrain, 
+                                     args.omitLabels,
+                                     nBatches=args.nBatches)
 
         # save a snapshot of current model weights
         weightFile = os.path.join(args.outDir, "weights_epoch_%03d.h5" % epoch)
         if os.path.exists(weightFile):
             os.remove(weightFile)
         model.save_weights(weightFile)
+
+        # also save accuracies (for diagnostic purposes)
+        accFile = os.path.join(args.outDir, 'acc_epoch_%03d.npy')
+        np.save(accFile, acc)
 
         # Evaluate performance on validation data.
         logger.info('epoch %d complete. validating...' % epoch)
