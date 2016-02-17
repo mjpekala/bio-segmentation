@@ -5,15 +5,15 @@
 PY=PYTHONPATH=./src:./src/thirdparty python
 
 ISBI=./data/ISBI2012
-OUT_DIR=./Models/ISBI2012
+OUT_DIR=./Models/ISBI2012_quick
 
 
 # Use TRAIN_QUICK to make sure training runs end-to-end; use TRAIN_FULL
 # if you want a reasonable model.
 # 
-TRAIN_QUICK=--num-batches-per-epoch 100000 --num-epochs 3
+TRAIN_QUICK=--num-batches-per-epoch 50000 --num-epochs 1
 TRAIN_FULL=--num-epochs 30
-TRAIN_FLAGS=$(TRAIN_FULL)
+TRAIN_FLAGS=$(TRAIN_QUICK)
 
 
 #-------------------------------------------------------------------------------
