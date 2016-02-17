@@ -8,8 +8,8 @@ ISBI=./data/ISBI2012
 OUT_DIR=./Models/ISBI2012
 
 
-# Pick one of TRAIN_QUICK or TRAIN_FULL depending on how much time and GPU
-# you have available.
+# Use TRAIN_QUICK to make sure training runs end-to-end; use TRAIN_FULL
+# if you want a reasonable model.
 # 
 TRAIN_QUICK=--num-batches-per-epoch 10000 --num-epochs 3
 TRAIN_FULL=--num-epochs 30
