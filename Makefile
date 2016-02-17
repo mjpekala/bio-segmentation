@@ -15,6 +15,8 @@ TRAIN_QUICK=--num-mb-per-epoch 500 --num-epochs 1
 TRAIN_FULL=--num-epochs 30
 TRAIN_FLAGS=$(TRAIN_QUICK)
 
+WEIGHT_FILE=$(OUT_DIR)/weights_epoch_000.h5 \
+
 
 #-------------------------------------------------------------------------------
 default :
@@ -42,17 +44,24 @@ train-isbi :
 		$(TRAIN_FLAGS)
 
 
-
 deploy-isbi :
 	$(PY) ./src/deploy.py \
 		--x $(ISBI)/test-volume.tif \
-		--weight-file $(OUT_DIR)/weights_epoch_002.h5 \
+		--weight-file $(WEIGHT_FILE) \
 		--eval-pct .1 \
 		--out-file $(OUT_DIR)/Yhat_test.npy
 
 
+deploy-isbi-s0 :
+	$(PY) ./src/deploy.py \
+		--x $(ISBI)/test-volume.tif \
+		--weight-file $(WEIGHT_FILE) \
+		--slices "[0,]" \
+		--out-file $(OUT_DIR)/Yhat_test_0.npy
 
-test :
+
+
+unittest:
 	$(PY) ./tests/test_emlib.py
 
 
