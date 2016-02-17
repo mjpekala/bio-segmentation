@@ -4,7 +4,9 @@
 
 
  Notes: 
-   o currently assumes input image data is single channel (i.e. grayscale)
+   o Currently assumes input image data is single channel (i.e. grayscale).
+   o Output probability values of NaN indicate pixels that were not 
+     evaluated (e.g. due to boundary conditions or downsampling)
 
 """
 
@@ -24,6 +26,8 @@ import pdb
 import emlib
 import models as emm
 from train import _minibatch_setup
+
+from sobol_lib import i4_sobol_generate as sobol
 
 
 
@@ -45,7 +49,7 @@ def _deploy_mode_args():
 		    type=str, default='', 
 		    help='(optional) subset of slices to evaluate')
     parser.add_argument('--eval-pct', dest='evalPct', 
-		    type=float, default=1, 
+		    type=float, default=1.0, 
 		    help='(optional) Percent of pixels to evaluate (in [0,1])')
 
     parser.add_argument('--out-file', dest='outFile', 
@@ -67,8 +71,28 @@ def _deploy_mode_args():
 
 
 
+def _downsample_mask(X, pct):
+    """ Create a boolean mask indicating which subset of X should be 
+    evaluated.
+    """
+    if pct < 1.0: 
+        Mask = np.zeros(X.shape, dtype=np.bool)
+        m = X.shape[-2]
+        n = X.shape[-1]
+        nToEval = np.round(pct*m*n).astype(np.int32)
+        idx = sobol(2, nToEval ,0)
+        idx[0] = np.floor(m*idx[0])
+        idx[1] = np.floor(n*idx[1])
+        idx = idx.astype(np.int32)
+        Mask[:,idx[0], idx[1]] = True
+    else:
+        Mask = np.ones(X.shape, dtype=np.bool)
 
-def _evaluate(logger, model, X, batchSize=100):
+    return Mask
+
+
+
+def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
     """Evaluate model on held-out data.
     """
     #----------------------------------------
@@ -80,10 +104,13 @@ def _evaluate(logger, model, X, batchSize=100):
     lastChatter = -2
     startTime = time.time()
 
+    Mask = _downsample_mask(X, evalPct)
+    logger.info('after masking, will evaluate %0.2f%% of data' % (100.0*np.sum(Mask)/Mask.size))
+
     #----------------------------------------
     # Loop over mini-batches
     #----------------------------------------
-    it = emlib.interior_pixel_generator(X, tileRadius, batchSize)
+    it = emlib.interior_pixel_generator(X, tileRadius, batchSize, mask=Mask)
 
     for mbIdx, (Idx, epochPct) in enumerate(it): 
         n = Idx.shape[0] # may be < batchSize on final iteration
@@ -104,7 +131,6 @@ def _evaluate(logger, model, X, batchSize=100):
         if (lastChatter+2) < elapsed:  
             lastChatter = elapsed
             logger.info("  last pixel %s (%0.2f%% complete)" % (str(Idx[-1,:]), 100.*epochPct))
-
 
     return Prob
 
@@ -149,11 +175,10 @@ if __name__ == "__main__":
     # Do it
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     logger.info('evaluating volume...')
-    Prob = _evaluate(logger, model, X)
-    estFile = os.path.join(args.outDir, "validation_epoch_%03d.npy" % epoch)
+    Prob = _evaluate(logger, model, X, evalPct=args.evalPct)
     np.save(args.outFile, Prob)
 
-    logger.info('Complete!  Probabilites stored in file %s' % estFile)
+    logger.info('Complete!  Probabilites stored in file %s' % args.outFile)
 
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
