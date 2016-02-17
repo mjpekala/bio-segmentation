@@ -1,6 +1,23 @@
 """  Trains a CNN for dense (i.e. per-pixel) classification problems.
 
-Note: currently assumes input image data is single channel (i.e. grayscale)
+ Notes: 
+   o Currently assumes input image data is single channel (i.e. grayscale).
+     So most of this code is expecting data volumes (tensors) with dimensions
+            #slices x rows x colums
+
+     It is only right before feeding data to the CNN we add the channels 
+     dimension to create a tensor 
+            #slices x #channels x rows x colums
+
+     It should be fairly straightforward to generalize this code to
+     multiple channels; corresponding changes will need to be made 
+     to emlib as well.
+
+   o When using caffe, it was straightforward to set the gpu id here.  
+     I believe for keras this is controlled by the backend (e.g. theano).
+     So, for the time being, you need to set the gpu id to use externally
+     from this script.
+
 """
 
 __author__ = "Mike Pekala"
@@ -59,10 +76,6 @@ def _train_mode_args():
     parser.add_argument('--num-batches-per-epoch', dest='nBatches', 
 		    type=int, default=sys.maxint,
 		    help='maximum number of mini-batches to process each epoch')
-
-    parser.add_argument('--gpu', dest='gpu', 
-		    type=int, default=-1, 
-		    help='GPU ID to use')
 
     parser.add_argument('--out-dir', dest='outDir', 
 		    type=str, default='', 
@@ -241,12 +254,12 @@ def _train_one_epoch(logger, model, X, Y,
         if (mbIdx > len(accBuffer)) and ((lastChatter+2) < elapsed):  
             # notify progress every 2 min
             lastChatter = elapsed
-            logger.info("just completed mini-batch %d" % mbIdx)
-            logger.info("we are %0.2f%% complete with this epoch" % (100.*epochPct))
-            logger.info("recent accuracy, loss: %0.2f, %0.2f" % (np.mean(accBuffer), np.mean(lossBuffer)))
+            logger.info("  just completed mini-batch %d" % mbIdx)
+            logger.info("  we are %0.2f%% complete with this epoch" % (100.*epochPct))
+            logger.info("  recent accuracy, loss: %0.2f, %0.2f" % (np.mean(accBuffer), np.mean(lossBuffer)))
 
         if mbIdx >= nBatches:
-            logger.info("maximum number of mini-batches per epoch reached. Ending this training epoch early.")
+            logger.info("  maximum number of mini-batches per epoch reached. Ending this training epoch early.")
             return
 
 
