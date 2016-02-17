@@ -175,36 +175,23 @@ def mirror_edges(X, nPixels):
     
     s,m,n = X.shape
     Xm = np.zeros((s, m+2*nPixels, n+2*nPixels), dtype=X.dtype)
-    
+   
+    # the interior of Xm is just X
     Xm[:, nPixels:m+nPixels, nPixels:n+nPixels] = X
 
-    # a helper function for dealing with corners
-    flip_corner = lambda X : np.fliplr(np.flipud(X))
-
     for ii in range(s):
-        # top left corner
-        Xm[ii, 0:nPixels,0:nPixels] = flip_corner(X[ii, 0:nPixels,0:nPixels])
+        # left edge
+        Xm[ii, :, 0:nPixels] = np.fliplr(Xm[ii, :, nPixels:2*nPixels])
 
-        # top right corner
-        Xm[ii, 0:nPixels,n+nPixels:] = flip_corner(X[ii, 0:nPixels,n-nPixels:])
+        # right edge
+        Xm[ii, :, -nPixels:] = np.fliplr(Xm[ii, :, -2*nPixels:-nPixels])
 
-        # bottom left corner
-        Xm[ii, m+nPixels:,0:nPixels] = flip_corner(X[ii, m-nPixels:,0:nPixels])
+        # top edge (fills in corners)
+        Xm[ii, 0:nPixels, :] = np.flipud(Xm[ii, nPixels:2*nPixels, :])
 
-        # bottom right corner
-        Xm[ii, m+nPixels:,n+nPixels:] = flip_corner(X[ii, m-nPixels:,n-nPixels:])
+        # bottom edge (fills in corners)
+        Xm[ii, -nPixels:, :] = np.flipud(Xm[ii, -2*nPixels:-nPixels, :])
 
-        # top border
-        Xm[ii, 0:nPixels, nPixels:n+nPixels] = np.flipud(X[ii, 0:nPixels,:])
-
-        # bottom border
-        Xm[ii, m+nPixels:, nPixels:n+nPixels] = np.flipud(X[ii, m-nPixels:,:])
-
-        # left border
-        Xm[ii, nPixels:m+nPixels,0:nPixels] = np.fliplr(X[ii, :,0:nPixels])
-
-        # right border
-        Xm[ii, nPixels:m+nPixels,n+nPixels:] = np.fliplr(X[ii, :,n-nPixels:])
 
     return Xm
 
