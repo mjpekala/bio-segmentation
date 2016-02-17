@@ -244,7 +244,6 @@ def _train_one_epoch(logger, model, X, Y,
         accBuffer[np.mod(mbIdx, len(accBuffer))] = acc
         lossBuffer[np.mod(mbIdx, len(lossBuffer))] = loss
 
-        if mbIdx > 200: return # TEMP
 
         #----------------------------------------
         # Some events occur on regular intervals.
