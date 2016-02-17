@@ -385,7 +385,7 @@ if __name__ == "__main__":
         model.save_weights(weightFile)
 
         # also save accuracies (for diagnostic purposes)
-        accFile = os.path.join(args.outDir, 'acc_epoch_%03d.npy')
+        accFile = os.path.join(args.outDir, 'acc_epoch_%03d.npy' % epoch)
         np.save(accFile, acc)
 
         # Evaluate performance on validation data.
