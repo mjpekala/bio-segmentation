@@ -1,7 +1,7 @@
 """  Trains a CNN for dense (i.e. per-pixel) classification problems.
 
-Note: a current assumption is that the input image data is a single channel
-      (ie grayscale).
+Note: currently assumes input image data is single channel (i.e. grayscale)
+
 """
 
 __author__ = "Mike Pekala"
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     # TODO: make network configurable via command line
     logger.info('creating CNN')
     model = emm.ciresan_n3()
-    sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy', class_mode='binary', optimizer=sgd)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
