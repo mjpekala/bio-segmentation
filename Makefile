@@ -2,7 +2,7 @@
 # 
 # mjp Feb, 2016
 
-PY=python
+PY=PYTHONPATH=./src:./src/thirdparty python
 
 ISBI=./data/ISBI2012
 OUT_DIR=./Models/ISBI2012
@@ -48,7 +48,7 @@ deploy-isbi :
 
 
 test :
-	PYTHONPATH=./src $(PY) ./tests/test_emlib.py
+	$(PY) ./tests/test_emlib.py
 
 
 clean :
