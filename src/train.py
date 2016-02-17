@@ -1,7 +1,6 @@
 """  Trains a CNN for dense (i.e. per-pixel) classification problems.
 
 Note: currently assumes input image data is single channel (i.e. grayscale)
-
 """
 
 __author__ = "Mike Pekala"
@@ -9,7 +8,7 @@ __copyright__ = "Copyright 2016, JHU/APL"
 __license__ = "Apache 2.0"
 
 
-import sys, os.path
+import sys, os
 import time
 import random
 import argparse
@@ -21,6 +20,7 @@ from keras.optimizers import SGD
 
 import emlib
 import models as emm
+
 
 
 
@@ -73,7 +73,8 @@ def _train_mode_args():
     if not os.path.exists(args.outDir):
         os.makedirs(args.outDir)
 
-    # map strings into python objects.  A little gross to use eval, but life is short.
+    # Map strings into python objects.  
+    # A little gross to use eval, but life is short.
     str_to_obj = lambda x: eval(x) if x else []
     
     args.trainSlices = str_to_obj(args.trainSlices)
@@ -151,28 +152,42 @@ def _xform_minibatch(X):
 
 
 
-def _train_one_epoch(logger, model, X, Y, 
-                      omitLabels, 
-                     batchSize=100, 
-                     nBatches=sys.maxint):
-    """Trains the model for <= one epoch.
-    """
-    # Pre-allocate some variables & storage.
-
+def _minibatch_setup(model, batchSize):
     # assuming square tiles with odd dimension
     rows, cols = model.input_shape[2:4]
     assert(rows == cols)
     assert(np.mod(rows,2) == 1)
     tileRadius = int(rows/2)
 
-    nChannels = 1  # could relax this assumption later
-    Xi = np.zeros((batchSize, nChannels, rows, cols), dtype=np.float32)
+    # Currently assuming a single channel and binary classification.
+    nChannels = 1
+    nClasses = 2
 
-    # with the Theano backend, it seems the codes are expecting
+    # Note: with the Theano backend, it seems the codes are expecting
     # one hot vectors as class labels.
+    Xi = np.zeros((batchSize, nChannels, rows, cols), dtype=np.float32)
+    yi = np.zeros((batchSize, nClasses), dtype=np.float32)
+
+    return Xi, yi, tileRadius
+
+
+
+def _train_one_epoch(logger, model, X, Y, 
+                     omitLabels, 
+                     batchSize=100,
+                     nBatches=sys.maxint):
+    """Trains the model for <= one epoch.
+    """
+    #----------------------------------------
+    # Pre-allocate some variables & storage.
+    #----------------------------------------
+    Xi, yi, tileRadius = _minibatch_setup(model, batchSize)
+
+    # make sure class labels are as expected
     yAll = np.unique(Y).astype(np.int32)
-    assert(np.min(yAll) == 0);  assert(np.max(yAll) == (len(yAll)-1))
-    yi = np.zeros((batchSize, len(yAll)), dtype=np.float32)
+    assert(np.min(yAll) == 0);  
+    assert(np.max(yAll) == (len(yAll)-1))
+    assert(len(yAll) == 2) # remove this for multi-class
 
     # some variables we'll use for reporting progress    
     lastChatter = -2
@@ -180,6 +195,9 @@ def _train_one_epoch(logger, model, X, Y,
     accBuffer = np.nan*np.ones(10)
     lossBuffer = np.nan*np.ones(accBuffer.shape)
 
+    #----------------------------------------
+    # Loop over mini-batches
+    #----------------------------------------
     it = emlib.stratified_interior_pixel_generator(Y,
                                                    tileRadius,
                                                    batchSize,
@@ -213,12 +231,15 @@ def _train_one_epoch(logger, model, X, Y,
         accBuffer[np.mod(mbIdx, len(accBuffer))] = acc
         lossBuffer[np.mod(mbIdx, len(lossBuffer))] = loss
 
+        if mbIdx > 200: return # TEMP
+
         #----------------------------------------
         # Some events occur on regular intervals.
         # Address these here.
         #----------------------------------------
         elapsed = (time.time() - startTime) / 60.0
-        if (lastChatter+2) < elapsed:  # notify progress every 2 min
+        if (mbIdx > len(accBuffer)) and ((lastChatter+2) < elapsed):  
+            # notify progress every 2 min
             lastChatter = elapsed
             logger.info("just completed mini-batch %d" % mbIdx)
             logger.info("we are %0.2f%% complete with this epoch" % (100.*epochPct))
@@ -227,6 +248,55 @@ def _train_one_epoch(logger, model, X, Y,
         if mbIdx >= nBatches:
             logger.info("maximum number of mini-batches per epoch reached. Ending this training epoch early.")
             return
+
+
+
+
+def _evaluate(logger, model, X, Y, batchSize=100):
+    """Evaluate model on held-out data.
+    """
+    #----------------------------------------
+    # Pre-allocate some variables & storage.
+    #----------------------------------------
+    Xi, yi, tileRadius = _minibatch_setup(model, batchSize)
+    Prob = np.nan * np.ones(Y.shape, dtype=np.float32)
+
+    # make sure class labels are as expected
+    yAll = np.unique(Y).astype(np.int32)
+    assert(np.min(yAll) == 0);  
+    assert(np.max(yAll) == (len(yAll)-1))
+
+    #----------------------------------------
+    # Loop over mini-batches
+    #----------------------------------------
+    it = emlib.interior_pixel_generator(X, tileRadius, batchSize)
+
+    for mbIdx, (Idx, epochPct) in enumerate(it): 
+        n = Idx.shape[0] # may be < batchSize on final iteration
+
+        # Map pixel indices to tiles
+        for jj in range(n):
+            a = Idx[jj,1] - tileRadius 
+            b = Idx[jj,1] + tileRadius + 1 
+            c = Idx[jj,2] - tileRadius 
+            d = Idx[jj,2] + tileRadius + 1 
+            Xi[jj, 0, :, :] = X[ Idx[jj,0], a:b, c:d ]
+            yj = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
+            yi[jj,:] = 0;  yi[jj,yj] = 1
+
+        assert(not np.any(np.isnan(Xi)))
+        assert(not np.any(np.isnan(yi)))
+
+        prob = model.predict_on_batch(Xi)
+        Prob[Idx[:,0], Idx[:,1], Idx[:,2]] = prob[0][:n,1]
+
+    # evaluate accuracy only on the subset of pixels that were
+    # provided to the CNN (which may exclude the border)
+    Yhat = (Prob >= .5)
+    M = np.isfinite(Prob)
+    acc = 100.0 * np.sum(Yhat[M] == Y[M]) / np.sum(M)
+
+    return Prob, acc
 
 
 
@@ -273,11 +343,12 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # create and configure CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # TODO: make network configurable via command line
     logger.info('creating CNN')
     model = emm.ciresan_n3()
     sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss='categorical_crossentropy', class_mode='binary', optimizer=sgd)
+    model.compile(loss='categorical_crossentropy', 
+            class_mode='binary', 
+            optimizer=sgd)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Do training
@@ -286,12 +357,19 @@ if __name__ == "__main__":
         logger.info('starting training epoch %d' % epoch);
         _train_one_epoch(logger, model, Xtrain, Ytrain, args.omitLabels,
                          nBatches=args.nBatches)
-        model.save_weights(os.path.join(args.outDir, "weights_epoch_%03d.h5" % epoch))
-    
+
+        # save a snapshot of current model weights
+        weightFile = os.path.join(args.outDir, "weights_epoch_%03d.h5" % epoch)
+        if os.path.exists(weightFile):
+            os.remove(weightFile)
+        model.save_weights(weightFile)
+
+        # Evaluate performance on validation data.
         logger.info('epoch %d complete. validating...' % epoch)
-        #model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
-        logger.info('TODO: run validation')
-        
+        Prob, acc = _evaluate(logger, model, Xvalid, Yvalid)
+        logger.info('accuracy on validation data: %0.2f' % acc)
+        estFile = os.path.join(args.outDir, "validation_epoch_%03d.npy" % epoch)
+        np.save(estFile, Prob)
 
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
