@@ -11,7 +11,7 @@ Note: this code is in an experimental state and subject to change.
 This code requires you install [Keras](http://keras.io/) along with a suitable backend; we are using [Theano](http://deeplearning.net/software/theano/).  Fortunately these packages are quite easy to install using pip; instructions are availble on the respective websites.
 
 
-### Running Experiments
+### ISBI 2012 Example
 
 An example is provided for the [ISBI 2012 membrane segmentation challenge problem](http://brainiac2.mit.edu/isbi_challenge/).  Before running this example you will need to download the ISBI 2012 data set (using the link above) and place the .tif files in the directory ./data/ISBI2012. At this point you are ready to train and deploy a CNN.  The provided [Makefile](./Makefile) automates this process.
 
