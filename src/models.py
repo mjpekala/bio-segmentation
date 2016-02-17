@@ -47,7 +47,7 @@ def ciresan_n3(n=65):
     model.add(Activation('relu'))
     #model.add(Dropout(0.5))
 
-    model.add(Dense(2))
+    model.add(Dense(2))  # two outputs for binary classification
     model.add(Activation('softmax'))
     return model
 
