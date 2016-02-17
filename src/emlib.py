@@ -200,23 +200,14 @@ def mirror_edges(X, nPixels):
 def stratified_interior_pixel_generator(Y, borderSize, batchSize,
                                         mask=None,
                                         omitSlices=[],
-                                        omitLabels=[]):
-    """An iterator over pixel indices with the property that pixels of different
-    class labels are represented in equal proportions.
+                                        omitLabels=[],
+                                        stopAfter=-1):
+    """An iterator over pixel indices with the property that pixels of 
+    different class labels are represented in equal proportions.
 
-    Warning: this is fairly memory intensive (pre-computes the entire list of indices).
+    Warning: this is fairly memory intensive (pre-computes the 
+    entire list of indices).
     An alternative (an approxmation) might have been random sampling...
-
-    Parameters:
-      Y          := a (# slices x width x height) class label tensor
-
-      borderSize := Specifies a border width - all pixels in this exterior border
-                    will be excluded from the return value.
-                    
-      batchSize  := The number of pixels that should be returned each iteration.
-      
-      mask       := a boolean tensor the same size as X where 0/false means omit
-                    the corresponding pixel
     """
     [s,m,n] = Y.shape
     yAll = np.unique(Y)
@@ -253,10 +244,14 @@ def stratified_interior_pixel_generator(Y, borderSize, batchSize,
     # one last shuffle to mix all the classes together
     np.random.shuffle(Idx)   # note: modifies array in-place
 
+    # (optional) implement early stopping
+    if (stopAfter > 0) and (stopAfter <= Idx.shape[0]):
+        Idx = Idx[:stopAfter,...]
+
     # return in subsets of size batchSize
     for ii in range(0, Idx.shape[0], batchSize):
         nRet = min(batchSize, Idx.shape[0] - ii)
-        yield Idx[ii:(ii+nRet)], (1.0*ii)/Idx.shape[0]
+        yield Idx[ii:(ii+nRet)], (1.0*ii+nRet)/Idx.shape[0]
 
 
  
@@ -265,23 +260,24 @@ def interior_pixel_generator(X, borderSize, batchSize,
                              omitSlices=[]):
     """An iterator over pixel indices in the interior of an image.
 
-    Warning: this is fairly memory intensive (pre-computes the entire list of indices).
+    Warning: this is fairly memory intensive (pre-computes the entire 
+    list of indices).
 
     Note: we could potentially speed up the process of extracting subtiles by
     creating a more efficient implementation; however, some simple timing tests
-    indicate we are spending orders of magnitude more time in CNN operations so
-    there is no pressing need to optimize tile extraction at the moment.
+    indicated are spending orders of magnitude more time doing CNN operations 
+    so there is no pressing need to optimize tile extraction at the moment.
 
     Parameters:
       X          := a (# slices x width x height) image tensor
       
-      borderSize := Specifies a border width - all pixels in this exterior border
-                    will be excluded from the return value.
+      borderSize := Specifies a border width - all pixels in this exterior 
+                    border will be excluded from the return value.
                     
       batchSize  := The number of pixels that should be returned each iteration.
       
-      mask       := a boolean tensor the same size as X where 0/false means omit
-                    the corresponding pixel
+      mask       := a boolean tensor the same size as X where 0/false means 
+                    omit the corresponding pixel
     """
     [s,m,n] = X.shape
         
@@ -302,7 +298,7 @@ def interior_pixel_generator(X, borderSize, batchSize,
     # return in subsets of size batchSize
     for ii in range(0, Idx.shape[0], batchSize):
         nRet = min(batchSize, Idx.shape[0] - ii)
-        yield Idx[ii:(ii+nRet)], (1.0*ii)/Idx.shape[0]
+        yield Idx[ii:(ii+nRet)], (1.0*ii+nRet)/Idx.shape[0]
 
 
 
