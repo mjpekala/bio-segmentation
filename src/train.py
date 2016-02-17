@@ -53,9 +53,12 @@ def _train_mode_args():
 		    type=str, default='', 
 		    help='(optional) list of class labels to omit from training')
     
-    parser.add_argument('--n-epochs', dest='nEpochs', 
+    parser.add_argument('--num-epochs', dest='nEpochs', 
 		    type=int, default=30,
 		    help='number of training epochs')
+    parser.add_argument('--num-batches-per-epoch', dest='nBatches', 
+		    type=int, default=sys.maxint,
+		    help='maximum number of mini-batches to process each epoch')
 
     parser.add_argument('--gpu', dest='gpu', 
 		    type=int, default=-1, 
@@ -148,7 +151,12 @@ def _xform_minibatch(X):
 
 
 
-def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
+def _train_one_epoch(logger, model, X, Y, 
+                      omitLabels, 
+                     batchSize=100, 
+                     nBatches=sys.maxint):
+    """Trains the model for <= one epoch.
+    """
     # Pre-allocate some variables & storage.
 
     # assuming square tiles with odd dimension
@@ -215,9 +223,14 @@ def _train_one_epoch(logger, model, X, Y, omitLabels, batchSize=100):
             logger.info("just completed mini-batch %d" % mbIdx)
             logger.info("we are %0.2f%% complete with this epoch" % (100.*epochPct))
             logger.info("recent accuracy, loss: %0.2f, %0.2f" % (np.mean(accBuffer), np.mean(lossBuffer)))
-                
+
+        if mpIdx >= nBatches:
+            logger.info("maximum number of mini-batches per epoch reached. Ending this training epoch early.")
+            return
 
 
+
+#-------------------------------------------------------------------------------
 if __name__ == "__main__":
     args = _train_mode_args()
     
@@ -271,12 +284,14 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     for epoch in range(args.nEpochs):
         logger.info('starting training epoch %d' % epoch);
-        _train_one_epoch(logger, model, Xtrain, Ytrain, args.omitLabels)
+        _train_one_epoch(logger, model, Xtrain, Ytrain, args.omitLabels,
+                         nBatches=args.nBatches)
+        model.save_weights(os.path.join(args.outDir, "weights_epoch_%03d.h5" % epoch))
     
-        logger.info('epoch %d complete. validating...' % epoch);
+        logger.info('epoch %d complete. validating...' % epoch)
         #model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
+        logger.info('TODO: run validation')
         
-        logger.info('TODO')
 
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
