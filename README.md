@@ -23,7 +23,7 @@ To train a CNN do:
 Once training is complete (or, alternately, using the provided weights we generated) you can evaluate (subsets of) the ISBI test volume via one of:
 ```
     make -f Makefile.isbi deploy 
-    make -f Makefile.isbi deploy-s0
+    make -f Makefile.isbi deploy-slice0
     make -f Makefile.isbi deploy-sub
 ```
 
