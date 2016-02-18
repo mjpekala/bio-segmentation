@@ -17,12 +17,14 @@ An example is provided for the [ISBI 2012 membrane segmentation challenge proble
 
 To train a CNN do:
 ```
-    make train-isbi
+    make -f Makefile.isbi train
 ```
 
-Once training is complete (or, alternately, using the provided weights we generated) you can evaluate the ISBI test volume via:
+Once training is complete (or, alternately, using the provided weights we generated) you can evaluate (subsets of) the ISBI test volume via one of:
 ```
-    make deploy-isbi
+    make -f Makefile.isbi deploy 
+    make -f Makefile.isbi deploy-s0
+    make -f Makefile.isbi deploy-sub
 ```
 
 Assuming you have data volumes with similar structure (grayscale with dense labels) it should be straightforward to modify the Makefile for your problem of interest.
