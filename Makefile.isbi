@@ -23,17 +23,20 @@ WEIGHT_FILE=$(OUT_DIR)/weights_epoch_003.h5 \
 default :
 	@echo ""
 	@echo "Targets supported by this makefile:"
-	@echo "   train-isbi  : trains a model using ISBI 2012 data set"
-	@echo "   deploy-isbi : evaluate ISBI 2012 test data"
-	@echo "   test        : runs unit tests"
-	@echo "   clean       : deletes any previously trained models"
+	@echo "   train          : trains a model using ISBI 2012 data set"
+	@echo "   deploy         : evaluate entire ISBI 2012 test volume"
+	@echo "   deploy-sub     : evaluate pseudo-randomly sampled points in test volume"
+	@echo "   deploy-slice0  : evaluate all pixels of slice 0 of test volume"
+	@echo "   test           : runs unit tests"
+	@echo "   clean          : deletes any previously trained models"
 	@echo ""
-	@echo "Training can take a long time.  You may want to do e.g."
-	@echo "  (nohup make train-isbi &) > train.out"
+	@echo "Training can take a long time;  you may want to do e.g."
+	@echo "  (nohup make -f Makefile.isbi train &) > train.isbi.out"
+	@echo ""
 
 
 
-train-isbi :
+train :
 	$(PY) ./src/train.py \
 		--x-train $(ISBI)/train-volume.tif \
 		--train-slices "range(0,27)" \
@@ -45,20 +48,26 @@ train-isbi :
 		$(TRAIN_FLAGS)
 
 
-deploy-isbi :
+deploy :
+	$(PY) ./src/deploy.py \
+		--x $(ISBI)/test-volume.tif \
+		--weight-file $(WEIGHT_FILE) \
+		--out-file $(OUT_DIR)/Yhat_test.npy
+
+deploy-sub :
 	$(PY) ./src/deploy.py \
 		--x $(ISBI)/test-volume.tif \
 		--weight-file $(WEIGHT_FILE) \
 		--eval-pct .1 \
-		--out-file $(OUT_DIR)/Yhat_test.npy
+		--out-file $(OUT_DIR)/Yhat_test_sub.npy
 
 
-deploy-isbi-s0 :
+deploy-slice0 :
 	$(PY) ./src/deploy.py \
 		--x $(ISBI)/test-volume.tif \
 		--weight-file $(WEIGHT_FILE) \
 		--slices "[0,]" \
-		--out-file $(OUT_DIR)/Yhat_test_0.npy
+		--out-file $(OUT_DIR)/Yhat_test_s0.npy
 
 
 unittest:
