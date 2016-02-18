@@ -64,6 +64,9 @@ def _train_mode_args():
 		    type=str, default='', 
 		    help='(optional) list of class labels to omit from training')
     
+    parser.add_argument('--model', dest='model', 
+		    type=str, default='ciresan_n3',
+		    help='name of CNN model to use (python function)')
     parser.add_argument('--num-epochs', dest='nEpochs', 
 		    type=int, default=30,
 		    help='number of training epochs')
@@ -79,6 +82,7 @@ def _train_mode_args():
 
     if not os.path.exists(args.outDir):
         os.makedirs(args.outDir)
+
 
     # Map strings into python objects.  
     # A little gross to use eval, but life is short.
@@ -329,6 +333,8 @@ if __name__ == "__main__":
     ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
     logger.addHandler(ch)
 
+    logger.info(str(args))
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # load training and validation volumes
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -363,7 +369,7 @@ if __name__ == "__main__":
     # create and configure CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     logger.info('creating CNN')
-    model = emm.ciresan_n3()
+    model = getattr(emm, args.model)() 
     sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy', 
             class_mode='categorical', 
