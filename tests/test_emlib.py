@@ -40,30 +40,31 @@ class TestEmlib(unittest.TestCase):
 
 
     def test_mirror_edges(self):
-        X = np.random.rand(10,3,3);
+        X = np.random.rand(10,2,3,3);
         b = 2  # b := border size
         Xm = emlib.mirror_edges(X,b)
 
         # make sure the result has the proper size
         assert(Xm.shape[0] == X.shape[0]);
-        assert(Xm.shape[1] == X.shape[1]+2*b);
+        assert(Xm.shape[1] == X.shape[1]);
         assert(Xm.shape[2] == X.shape[2]+2*b);
+        assert(Xm.shape[3] == X.shape[3]+2*b);
 
         # make sure the data looks reasonable
-        self.assertTrue(np.all(Xm[:,:,b-1] == Xm[:,:,b]))
-        self.assertTrue(np.all(Xm[:, b:-b, b:-b] == X))
+        self.assertTrue(np.all(Xm[:,:,:,b-1] == Xm[:,:,:,b]))
+        self.assertTrue(np.all(Xm[:,:, b:-b, b:-b] == X))
 
         ## another test case
-        X = np.zeros((1,10,10))
-        X[0,2,:] = 1
+        X = np.zeros((1,1,10,10))
+        X[0,0,2,:] = 1
         Xm = emlib.mirror_edges(X, 3)
-        self.assertTrue(np.all(Xm[0,0,:] == 1))
-        self.assertTrue(np.all(Xm[0,1,:] == 0))
-        self.assertTrue(np.all(Xm[0,2,:] == 0))
-        self.assertTrue(np.all(Xm[0,3,:] == 0))
-        self.assertTrue(np.all(Xm[0,4,:] == 0))
-        self.assertTrue(np.all(Xm[0,5,:] == 1))
-        self.assertTrue(np.all(Xm[0,6,:] == 0))
+        self.assertTrue(np.all(Xm[0,0,0,:] == 1))
+        self.assertTrue(np.all(Xm[0,0,1,:] == 0))
+        self.assertTrue(np.all(Xm[0,0,2,:] == 0))
+        self.assertTrue(np.all(Xm[0,0,3,:] == 0))
+        self.assertTrue(np.all(Xm[0,0,4,:] == 0))
+        self.assertTrue(np.all(Xm[0,0,5,:] == 1))
+        self.assertTrue(np.all(Xm[0,0,6,:] == 0))
 
 
     def test_interior_pixel_generator(self):
@@ -74,6 +75,15 @@ class TestEmlib(unittest.TestCase):
 
         self.assertTrue(np.all(Z[:,b:-b,b:-b]==1))
         Z[:,b:-b,b:-b] = 0
+        self.assertTrue(np.all(Z==0))
+
+        # Make sure it works with 4d tensors as well
+        Z = np.zeros((2,3,100,100), dtype=np.int32)
+        for idx, pct  in emlib.interior_pixel_generator(Z,b,30):
+            Z[idx[:,0],:,idx[:,1],idx[:,2]] += 1
+
+        self.assertTrue(np.all(Z[:,:,b:-b,b:-b]==1))
+        Z[:,:,b:-b,b:-b] = 0
         self.assertTrue(np.all(Z==0))
 
         

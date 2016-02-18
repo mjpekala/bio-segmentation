@@ -1,15 +1,27 @@
 """ Functions for working with image data volumes.
 
- The functions in this module all assume an image volume has dimensions:
-      #slices x width x height
-      
- The choice to have the z dimension first is for compatability with 
- numpy's slicing, which implicitly squeezes 3d to 2d when dimensions are 
- ordered this way.  It's also how most of the CNN tools expect dimensions
- to be ordered (well, technically they expect a tensor with dimensions
-      #slices x #channels x width x height
- but for now we assume single channel data.  This single channel assumption 
- would not be terribly diffcult to relax).
+ Data volumes
+ ------------
+ This module assumes that all image data volumes (by convention, 
+ have the variable name X) have dimensions:
+
+          (z-slices, #channels, rows, cols) 
+
+  For example, a grayscale EM volume with 10 slices each of
+  512x512 pixels will have shape
+          (10, 1, 512, 512)
+
+  This module assumes that class label volumes (which conventionally will
+  be named Y) will only every have a single class label for each pixel. 
+  Hence, the #channels dimension is unncessary.
+  Therefore, these volumes will have dimension
+
+          (z-slices, rows, cols)
+ 
+  This particular ordering of dimensions was chosen to maximize
+  compatibility with the CNN frameworks (and also works well with
+  numpy's slicing, which implicitly squeezes from the left).
+
 """
 
 __author__ = "Mike Pekala"
@@ -29,23 +41,25 @@ import h5py
 
 
 
-def load_cube(dataFile, dtype='float32'):
-    """ Loads a data volume.  This could be image data or per-pixel class labels.
+def load_cube(dataFile, dtype='float32', addChannel=True):
+    """ Loads a data volume.  This could be image data or per-pixel 
+    class labels.
 
     Uses the file extension to determine the underlying data format.
     Note that the Matlab data format currently assumes you saved using
     the -v7.3 flag (hdf5 under the hood).
 
-    dataFile  := the full filename containing the data volume
-    dtype     := data type that should be used to represent the data
+      dataFile   : the full filename containing the data volume
+      dtype      : data type that should be used to represent the data
+      d4         : if true, adds the fourth channel dimension to the tensor
     """
     
     # Raw TIFF data
-    if dataFile.endswith('.tif') or dataFile.endswith('.tiff'):
-        return load_tiff_data(dataFile, dtype)
+    if dataFile.lower().endswith('.tif') or dataFile.lower().endswith('.tiff'):
+        X = load_tiff_data(dataFile, dtype)
 
     # Matlab data 
-    elif dataFile.endswith('.mat'):
+    elif dataFile.lower().endswith('.mat'):
         # currently assumes matlab 7.3 format files - i.e. hdf
         # 
         # Note: matlab uses fortran ordering, hence the permute/transpose here.
@@ -54,12 +68,15 @@ def load_cube(dataFile, dtype='float32'):
             raise RuntimeError('mat file has more than one key - not yet supported!')
         X = (d.values()[0])[:]
         X = np.transpose(X, (0,2,1))
-        return X.astype(dtype)
 
     # Numpy file 
     else:
-        # assumpy numpy serialized object
-        return np.load(dataFile).astype(dtype)
+        # otherwise assumpy numpy serialized object. 
+        X = np.load(dataFile)
+
+    X = X.astype(dtype)
+    if addChannel and X.ndim == 3:
+        X = X[:, np.newaxis, :, :]
  
 
 
@@ -79,69 +96,17 @@ def load_tiff_data(dataFile, dtype='float32'):
     X = [];
     for ii in xrange(sys.maxint):
         Xi = np.array(dataImg, dtype=dtype)
-        Xi = np.reshape(Xi, (1, Xi.shape[0], Xi.shape[1]))  # add a slice dimension
+        if Xi.ndim == 2:
+            Xi = Xi[np.newaxis, ...] # add slice dimension
         X.append(Xi)
         try:
             dataImg.seek(dataImg.tell()+1)
         except EOFError:
             break # this just means hit end of file (not really an error)
 
-    X = np.concatenate(X, axis=0)  # list -> tensor
+    X = np.concatenate(X, axis=0)  # list of 2d -> tensor
     return X
 
-
-
-def save_tiff_data(X, outDir, baseName='X_'):
-    """Unfortunately, it appears PIL can only load multi-page .tif files
-    (i.e. it cannot create them).  So the approach is to create them a
-    slice at a time, using this function, and then combine them after
-    the fact using convert, e.g.
-
-    convert slice??.tif -define quantum:format=floating-point combinedF.tif
-    """
-    assert(len(X.shape) == 3)
-    for ii in range(X.shape[0]):
-        fn = os.path.join(outDir, baseName + "%02d" % ii + ".tif")
-        im = Image.fromarray(X[ii,:,:].astype('float32'))
-        im.save(fn)
-
-
-
-def label_epsilon(Y, epsilon=3, n=9, targetClass=255, verbose=True):
-    """Given a tensor of per-pixel class labels, return a new tensor of labels
-    where the class is 1 iff at least n pixels in an epsilon ball are the target class.
-
-    Note: for the moment, a "epsilon ball" is a rectangle of radius epsilon.
-
-    Example: given a tensor of per-pixel binary class labels, we want to create
-    a new training set where the class label of a pixel is 1 if there are enough
-    pixels nearby with class 1.  However, if there are other +1 pixels nearby but
-    not enough to be considered a positive class, we also want to flag this as
-    an instance we don't want to train on (so negative examples have no +1 pixels
-    nearby).
-
-       Y = emlib.load_cube('/Users/pekalmj1/Data/SynapseData3/Y_train2.mat')
-       eps=15
-       Y1 = emlib.label_epsilon(Y, epsilon=eps, n=15, targetClass=1)
-       Yany = emlib.label_epsilon(Y, epsilon=eps, n=1, targetClass=1)  # Y may have labels other that {+1,0}
-       Yeps = np.zeros(Y.shape, dtype=np.int32)  
-       Yeps[Yany==1] = -1 
-       Yeps[Y1==1] = 1 
-       scipy.io.savemat("Yeps.mat", {'Y' : np.transpose(Yeps, (1,2,0))})
-    
-    """
-    if len(Y.shape) != 3:
-        raise RuntimeError('Sorry - Y must be a 3d tensor')
-
-    Y = (Y == targetClass).astype(np.int32)
-    d = 2*epsilon+1
-    W = np.ones((d,d), dtype=bool)
-    Yeps = np.zeros(Y.shape)
-    for ii in range(Y.shape[0]):
-        if verbose: print('[label_epsilon]: processing slice %d (of %d)' % (ii, Y.shape[0]))
-        tmp = convolve2d(Y[ii,...], W, boundary='symm')
-        Yeps[ii,...] = tmp[epsilon:-epsilon, epsilon:-epsilon]
-    return (Yeps >= n)
 
 
 
@@ -166,32 +131,37 @@ def number_classes(Yin, omitLabels=[]):
 
 
 def mirror_edges(X, nPixels):
-    """Given an (s x m x n) tensor X, generates a new
-          s x (m+2*nPixels) x (n+2*nPixels)
+    """Given a tensor X with dimension 
+         (z, c, row, col) 
+
+    produces a new tensor with dimensions
+         (z, c, row+2*nPixels, row+2*nPixels)
+
     tensor with an "outer border" created by mirroring pixels along
     the outer border of X
     """
     assert(nPixels > 0)
-    
-    s,m,n = X.shape
-    Xm = np.zeros((s, m+2*nPixels, n+2*nPixels), dtype=X.dtype)
+
+    z,c,m,n = X.shape
+
+    Xm = np.zeros((z, c, m+2*nPixels, n+2*nPixels), dtype=X.dtype)
    
     # the interior of Xm is just X
-    Xm[:, nPixels:m+nPixels, nPixels:n+nPixels] = X
+    Xm[:, :, nPixels:m+nPixels, nPixels:n+nPixels] = X
 
-    for ii in range(s):
-        # left edge
-        Xm[ii, :, 0:nPixels] = np.fliplr(Xm[ii, :, nPixels:2*nPixels])
+    for ii in range(z):
+        for jj in range(c):
+            # left edge 
+            Xm[ii,jj, :, 0:nPixels] = np.fliplr(Xm[ii,jj, :, nPixels:2*nPixels])
 
-        # right edge
-        Xm[ii, :, -nPixels:] = np.fliplr(Xm[ii, :, -2*nPixels:-nPixels])
+            # right edge
+            Xm[ii,jj, :, -nPixels:] = np.fliplr(Xm[ii,jj, :, -2*nPixels:-nPixels])
 
-        # top edge (fills in corners)
-        Xm[ii, 0:nPixels, :] = np.flipud(Xm[ii, nPixels:2*nPixels, :])
+            # top edge (fills in corners)
+            Xm[ii,jj, 0:nPixels, :] = np.flipud(Xm[ii,jj, nPixels:2*nPixels, :])
 
-        # bottom edge (fills in corners)
-        Xm[ii, -nPixels:, :] = np.flipud(Xm[ii, -2*nPixels:-nPixels, :])
-
+            # bottom edge (fills in corners)
+            Xm[ii,jj, -nPixels:, :] = np.flipud(Xm[ii,jj, -2*nPixels:-nPixels, :])
 
     return Xm
 
@@ -269,7 +239,10 @@ def interior_pixel_generator(X, borderSize, batchSize,
     so there is no pressing need to optimize tile extraction at the moment.
 
     Parameters:
-      X          := a (# slices x width x height) image tensor
+      X          := An image tensor with *either* dimensions:
+                       (#slices, #channels, width, height) 
+                    or
+                       (#slices, width, height) 
       
       borderSize := Specifies a border width - all pixels in this exterior 
                     border will be excluded from the return value.
@@ -279,10 +252,14 @@ def interior_pixel_generator(X, borderSize, batchSize,
       mask       := a boolean tensor the same size as X where 0/false means 
                     omit the corresponding pixel
     """
-    [s,m,n] = X.shape
+    if X.ndim == 4:
+        [s,c,m,n] = X.shape
+    else:
+        [s,m,n] = X.shape
         
     # Used to restrict the set of pixels under consideration.
-    bitMask = np.ones(X.shape, dtype=bool)
+    # Note that the number of channels plays no role here.
+    bitMask = np.ones([s,m,n], dtype=bool)
     bitMask[omitSlices,:,:] = 0
 
     bitMask[:, 0:borderSize, :] = 0
