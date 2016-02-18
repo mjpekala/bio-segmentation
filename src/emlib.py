@@ -74,10 +74,12 @@ def load_cube(dataFile, dtype='float32', addChannel=True):
         # otherwise assumpy numpy serialized object. 
         X = np.load(dataFile)
 
+    # No matter the source, make sure the type and dimensions are right.
     X = X.astype(dtype)
     if addChannel and X.ndim == 3:
         X = X[:, np.newaxis, :, :]
- 
+
+    return X
 
 
 def load_tiff_data(dataFile, dtype='float32'):
@@ -270,20 +272,24 @@ def interior_pixel_generator(X, borderSize, batchSize,
     """
     if X.ndim == 4:
         [s,c,m,n] = X.shape
+        # if the mask has a channel dimension, collapse it
+        if mask is not None and mask.ndim == 4: 
+            mask = np.all(mask, axis=1)
     else:
         [s,m,n] = X.shape
-        
+
     # Used to restrict the set of pixels under consideration.
     # Note that the number of channels plays no role here.
     bitMask = np.ones([s,m,n], dtype=bool)
-    bitMask[omitSlices,:,:] = 0
+    bitMask[omitSlices,:,:] = False
 
-    bitMask[:, 0:borderSize, :] = 0
-    bitMask[:, (m-borderSize):m, :] = 0
-    bitMask[:, :, 0:borderSize] = 0
-    bitMask[:, :, (n-borderSize):n] = 0
+    bitMask[:, 0:borderSize, :] = False
+    bitMask[:, (m-borderSize):m, :] = False
+    bitMask[:, :, 0:borderSize] = False
+    bitMask[:, :, (n-borderSize):n] = False
     
     if mask is not None:
+        assert(np.all(mask.shape == bitMask.shape))
         bitMask = bitMask & mask
 
     Idx = np.column_stack(np.nonzero(bitMask))
