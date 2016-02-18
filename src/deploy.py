@@ -91,7 +91,7 @@ def _downsample_mask(X, pct):
         idx[0] = np.floor(m*idx[0])
         idx[1] = np.floor(n*idx[1])
         idx = idx.astype(np.int32)
-        Mask[:,idx[0], idx[1]] = True
+        Mask[:,:,idx[0], idx[1]] = True
     else:
         Mask = np.ones(X.shape, dtype=np.bool)
 
