@@ -42,6 +42,9 @@ def _deploy_mode_args():
 		    type=str, required=True,
 		    help='Filename of volume to evaluate')
 
+    parser.add_argument('--model', dest='model', 
+		    type=str, default='ciresan_n3',
+		    help='name of CNN model to use (python function)')
     parser.add_argument('--weight-file', dest='weightFile', 
 		    type=str, required=True,
 		    help='CNN weights to use')
@@ -194,7 +197,7 @@ if __name__ == "__main__":
     # initialize CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     logger.info('initializing CNN...')
-    model = emm.ciresan_n3()
+    model = getattr(emm, args.model)() 
     model.compile(optimizer='sgd',   # not used, but required by keras
                   loss='categorical_crossentropy',
                   class_mode='categorical')
