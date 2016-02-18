@@ -18,6 +18,10 @@ def ciresan_n3(n=65):
 
     As of this writing, no serious attempt has been made to optimize
     hyperparameters or structure of this network.
+
+    Parameters:
+       n : The tile size (diameter) to use in the sliding window.
+           Tiles are assumed to be square, hence only one parameter.
     
     [1] Ciresan et al 'Deep neural networks segment neuronal membranes in
         electron microscopy images,' NIPS 2012.
