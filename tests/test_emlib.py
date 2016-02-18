@@ -67,6 +67,24 @@ class TestEmlib(unittest.TestCase):
         self.assertTrue(np.all(Xm[0,0,6,:] == 0))
 
 
+    def test_rescale_01(self):
+        X = np.random.rand(10,3,3,3)
+        Xr = emlib.rescale_01(X, perChannel=False)
+        self.assertTrue(np.max(Xr) <= 1.0)
+        self.assertTrue(np.min(Xr) >= 0.0)
+        Xr = emlib.rescale_01(X, perChannel=True)
+        self.assertTrue(np.max(Xr) <= 1.0)
+        self.assertTrue(np.min(Xr) >= 0.0)
+
+        X = np.random.rand(10,3,100,100)
+        X[:,0,...] *= 1000.0
+        Xr = emlib.rescale_01(X, perChannel=False)
+        self.assertTrue(np.max(Xr[:,1,...]) <= .1)
+        Xr = emlib.rescale_01(X, perChannel=True)
+        self.assertTrue(np.max(Xr[:,1,...]) > .8)
+
+
+
     def test_interior_pixel_generator(self):
         b = 10  # b := border size
         Z = np.zeros((2,100,100), dtype=np.int32)

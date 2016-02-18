@@ -167,6 +167,22 @@ def mirror_edges(X, nPixels):
 
 
 
+def rescale_01(X, perChannel=True):
+    """Rescales all values to live in [0,1].
+    """
+    if not perChannel: 
+        xMin = np.min(X);  xMax = np.max(X)
+        return (X - xMin) / (xMax - xMin)
+    else:
+        Xout = np.zeros(X.shape, dtype=X.dtype)
+        for c in range(X.shape[1]):
+            xMin = np.min(X[:,c,...])
+            xMax = np.max(X[:,c,...])
+            Xout[:,c,:,:] = (X[:,c,...] - xMin) / (xMax - xMin)
+        return Xout
+
+
+
 def stratified_interior_pixel_generator(Y, borderSize, batchSize,
                                         mask=None,
                                         omitSlices=[],
