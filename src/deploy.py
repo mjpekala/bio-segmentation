@@ -21,6 +21,7 @@ import random
 import argparse
 import logging
 import numpy as np
+import scipy
 import pdb
 
 import emlib
@@ -61,6 +62,9 @@ def _deploy_mode_args():
     if not os.path.exists(os.path.dirname(args.outFile)):
         os.makedirs(os.path.dirname(args.outFile))
 
+    if not args.outFile.endswith('.npy'):
+        args.outFile += '.npy'
+
     # Map strings into python objects.  
     # A little gross to use eval, but life is short.
     str_to_obj = lambda x: eval(x) if x else []
@@ -94,6 +98,11 @@ def _downsample_mask(X, pct):
 
 def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
     """Evaluate model on held-out data.
+
+    Returns:
+      Prob : a tensor of per-pixel probability estimates with dimensions:
+         (#layers, #classes, width, height)
+
     """
     #----------------------------------------
     # Pre-allocate some variables & storage.
@@ -109,13 +118,21 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
 
     # Mirror edges (so that we can evaluate the entire volume)
     Xm = emlib.mirror_edges(X, tileRadius)
-    Prob = np.nan * np.ones(Xm.shape, dtype=np.float32)
 
     Mask = emlib.mirror_edges(Mask, tileRadius)
-    Mask[:,0:tileRadius,:] = False
-    Mask[:,-tileRadius:,:] = False
-    Mask[:,:,0:tileRadius] = False
-    Mask[:,:,-tileRadius:] = False
+    Mask[:,:,0:tileRadius,:] = False
+    Mask[:,:,-tileRadius:,:] = False
+    Mask[:,:,:,0:tileRadius] = False
+    Mask[:,:,:,-tileRadius:] = False
+
+    # Create storage for class probabilities.
+    # Note that we store all class probabilities, even if this
+    # is a binary classification problem (in which case p(1) = 1 - p(0)).
+    # We do this to support multiclass classification seamlessly.
+    [numZ, numChan, numRows, numCols] = Xm.shape
+    numClasses = model.output_shape[-1]
+    Prob = np.nan * np.ones([numZ, numClasses, numRows, numCols], 
+                            dtype=np.float32)
 
     #----------------------------------------
     # Loop over mini-batches
@@ -124,6 +141,7 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
 
     for mbIdx, (Idx, epochPct) in enumerate(it): 
         n = Idx.shape[0] # may be < batchSize on final iteration
+        assert(Idx.shape[1] == 3)
 
         # Map pixel indices to tiles
         for jj in range(n):
@@ -131,10 +149,10 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
             b = Idx[jj,1] + tileRadius + 1 
             c = Idx[jj,2] - tileRadius 
             d = Idx[jj,2] + tileRadius + 1 
-            Xi[jj, 0, :, :] = Xm[ Idx[jj,0], a:b, c:d ]
+            Xi[jj, :, :, :] = Xm[ Idx[jj,0], :, a:b, c:d ]
 
         prob = model.predict_on_batch(Xi)
-        Prob[Idx[:,0], Idx[:,1], Idx[:,2]] = prob[0][:n,1]
+        Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
 
         # notify user re. progress
         elapsed = (time.time() - startTime) / 60.0
@@ -143,7 +161,7 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
             logger.info("  last pixel %s (%0.2f%% complete)" % (str(Idx[-1,:]), 100.*epochPct))
 
     # discard mirrored portion before returning
-    Prob = Prob[:, tileRadius:-tileRadius, tileRadius:-tileRadius]
+    Prob = Prob[:, :, tileRadius:-tileRadius, tileRadius:-tileRadius]
     return Prob
 
 
@@ -167,8 +185,7 @@ if __name__ == "__main__":
         X = X[args.slices,:,:]
 
     # rescale features to live in [0, 1]
-    xMin = np.min(X);  xMax = np.max(X)
-    X = (X - xMin) / (xMax - xMin)
+    X = emlib.rescale_01(X, perChannel=True)
 
     logger.info('volume dimensions:   %s' % str(X.shape))
     logger.info('values min/max:      %g, %g' % (np.min(X), np.max(X)))
@@ -179,8 +196,8 @@ if __name__ == "__main__":
     logger.info('initializing CNN...')
     model = emm.ciresan_n3()
     model.compile(optimizer='sgd',   # not used, but required by keras
-                  loss='categorical_crossentropy', 
-                  class_mode='binary')
+                  loss='categorical_crossentropy',
+                  class_mode='categorical')
     model.load_weights(args.weightFile)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -189,6 +206,7 @@ if __name__ == "__main__":
     logger.info('evaluating volume...')
     Prob = _evaluate(logger, model, X, evalPct=args.evalPct)
     np.save(args.outFile, Prob)
+    scipy.io.savemat(args.outFile.replace('.npy', '.mat'), {'P' : Prob})
 
     logger.info('Complete!  Probabilites stored in file %s' % args.outFile)
 
