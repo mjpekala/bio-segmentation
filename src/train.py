@@ -1,17 +1,11 @@
 """  Trains a CNN for dense (i.e. per-pixel) classification problems.
 
  Notes: 
-   o Currently assumes input image data is single channel (i.e. grayscale).
-     So most of this code is expecting data volumes (tensors) with dimensions
-            #slices x rows x colums
-
-     It is only right before feeding data to the CNN we add the channels 
-     dimension to create a tensor 
+   o Currently assumes image data volumes have dimensions:
             #slices x #channels x rows x colums
 
-     It should be fairly straightforward to generalize this code to
-     multiple channels; corresponding changes will need to be made 
-     to emlib as well.
+     while label volumes have dimensions:
+            #slices x rows x colums
 
    o When using caffe, it was straightforward to set the gpu id here.  
      I believe for keras this is controlled by the backend (e.g. theano).
@@ -100,8 +94,8 @@ def _train_mode_args():
 
 def _xform_minibatch(X):
     """Implements synthetic data augmentation by randomly appling
-    an element of the group of symmetries of the square toa single mini-batch
-    of data.
+    an element of the group of symmetries of the square to a single 
+    mini-batch of data.
 
     The default set of data augmentation operations correspond to
     the symmetries of the square (a non abelian group).  The
@@ -165,19 +159,15 @@ def _xform_minibatch(X):
 
 
 
-def _minibatch_setup(model, batchSize):
+def _minibatch_setup(model, batchSize, nClasses=2):
     # assuming square tiles with odd dimension
-    rows, cols = model.input_shape[2:4]
+    nChannels, rows, cols = model.input_shape[1:4]
     assert(rows == cols)
     assert(np.mod(rows,2) == 1)
     tileRadius = int(rows/2)
 
-    # Currently assuming a single channel and binary classification.
-    nChannels = 1
-    nClasses = 2
-
     # Note: with the Theano backend, it seems the codes are expecting
-    # one hot vectors as class labels.
+    # one hot vectors as class labels.  Hence the second dimension of y.
     Xi = np.zeros((batchSize, nChannels, rows, cols), dtype=np.float32)
     yi = np.zeros((batchSize, nClasses), dtype=np.float32)
 
@@ -206,6 +196,7 @@ def _train_one_epoch(logger, model, X, Y,
     # some variables we'll use for reporting progress    
     lastChatter = -2
     startTime = time.time()
+    gpuTime = 0
     accBuffer = []
     lossBuffer = []
 
@@ -231,7 +222,7 @@ def _train_one_epoch(logger, model, X, Y,
             b = Idx[jj,1] + tileRadius + 1 
             c = Idx[jj,2] - tileRadius 
             d = Idx[jj,2] + tileRadius + 1 
-            Xi[jj, 0, :, :] = X[ Idx[jj,0], a:b, c:d ]
+            Xi[jj, :, :, :] = X[ Idx[jj,0], :, a:b, c:d ]
             yj = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
             yi[jj,:] = 0;  yi[jj,yj] = 1
 
@@ -242,9 +233,11 @@ def _train_one_epoch(logger, model, X, Y,
         assert(not np.any(np.isnan(yi)))
 
         # do training
+        tic = time.time()
         loss, acc = model.train_on_batch(Xi, yi, accuracy=True)
-        accBuffer.append(acc);  lossBuffer.append(loss)
+        gpuTime += time.time() - tic
 
+        accBuffer.append(acc);  lossBuffer.append(loss)
 
         #----------------------------------------
         # Some events occur on regular intervals.
@@ -265,6 +258,9 @@ def _train_one_epoch(logger, model, X, Y,
             logger.info("  just completed mini-batch %d" % mbIdx)
             logger.info("  we are %0.2g%% complete with this epoch" % (100.*epochPct))
             logger.info("  recent accuracy, loss: %0.2f, %0.2f" % (recentAcc, recentLoss))
+            fracGPU = (gpuTime/60.)/elapsed
+            logger.info("  pct. time spent on CNN ops.:              %0.2f%%" % (100.*fracGPU))
+            logger.info("")
 
     # return statistics
     return accBuffer, lossBuffer
@@ -278,7 +274,10 @@ def _evaluate(logger, model, X, Y, batchSize=100):
     # Pre-allocate some variables & storage.
     #----------------------------------------
     Xi, yi, tileRadius = _minibatch_setup(model, batchSize)
-    Prob = np.nan * np.ones(Y.shape, dtype=np.float32)
+    numClasses = model.output_shape[-1]
+    [numZ, numChan, numRows, numCols] = X.shape
+    Prob = np.nan * np.ones([numZ, numClasses, numRows, numCols],
+                            dtype=np.float32)
 
     # make sure class labels are as expected
     yAll = np.unique(Y).astype(np.int32)
@@ -299,7 +298,7 @@ def _evaluate(logger, model, X, Y, batchSize=100):
             b = Idx[jj,1] + tileRadius + 1 
             c = Idx[jj,2] - tileRadius 
             d = Idx[jj,2] + tileRadius + 1 
-            Xi[jj, 0, :, :] = X[ Idx[jj,0], a:b, c:d ]
+            Xi[jj, :, :, :] = X[ Idx[jj,0], :, a:b, c:d ]
             yj = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
             yi[jj,:] = 0;  yi[jj,yj] = 1
 
@@ -307,12 +306,12 @@ def _evaluate(logger, model, X, Y, batchSize=100):
         assert(not np.any(np.isnan(yi)))
 
         prob = model.predict_on_batch(Xi)
-        Prob[Idx[:,0], Idx[:,1], Idx[:,2]] = prob[0][:n,1]
+        Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
 
     # evaluate accuracy only on the subset of pixels that were
     # provided to the CNN (which may exclude the border)
-    Yhat = (Prob >= .5)
-    M = np.isfinite(Prob)
+    Yhat = np.argmax(Prob, axis=1)  # probabilities -> class labels
+    M = np.all(np.isfinite(Prob), axis=1)
     acc = 100.0 * np.sum(Yhat[M] == Y[M]) / np.sum(M)
 
     return Prob, acc
@@ -333,22 +332,23 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # load training and validation volumes
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Xtrain = emlib.load_cube(args.emTrainFile)
-    Ytrain = emlib.load_cube(args.labelsTrainFile)
+    Xtrain = emlib.load_cube(args.emTrainFile, addChannel=True)
+    Ytrain = emlib.load_cube(args.labelsTrainFile, addChannel=False)
     if args.trainSlices:
-        Xtrain = Xtrain[args.trainSlices,:,:]
+        Xtrain = Xtrain[args.trainSlices,:,:,:]
         Ytrain = Ytrain[args.trainSlices,:,:]
         
-    Xvalid = emlib.load_cube(args.emValidFile)
-    Yvalid = emlib.load_cube(args.labelsValidFile)
+    Xvalid = emlib.load_cube(args.emValidFile, addChannel=True)
+    Yvalid = emlib.load_cube(args.labelsValidFile, addChannel=False)
     if args.validSlices:
-        Xvalid = Xvalid[args.validSlices,:,:]
+        Xvalid = Xvalid[args.validSlices,:,:,:]
         Yvalid = Yvalid[args.validSlices,:,:]
 
     # rescale features to live in [0 1]
-    xMin = np.min(Xtrain);  xMax = np.max(Xtrain)
-    Xtrain = (Xtrain - xMin) / (xMax - xMin)
-    Xvalid = (Xvalid - xMin) / (xMax - xMin)
+    # XXX: technically, should probably use scale factors from
+    #      train volume on validation data...
+    Xtrain = emlib.rescale_01(Xtrain, perChannel=True)
+    Xvalid = emlib.rescale_01(Xvalid, perChannel=True)
 
     logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
     logger.info('training values min/max:      %g, %g' % (np.min(Xtrain), np.max(Xtrain)))
@@ -391,11 +391,11 @@ if __name__ == "__main__":
         # Evaluate performance on validation data.
         logger.info('epoch %d complete. validating...' % epoch)
         Prob, acc = _evaluate(logger, model, Xvalid, Yvalid)
-        logger.info('accuracy on validation data: %0.2f' % acc)
+        logger.info('accuracy on validation data: %0.2f%%' % acc)
         estFile = os.path.join(args.outDir, "validation_epoch_%03d.npy" % epoch)
         np.save(estFile, Prob)
 
-        loger.info('Finished!')
+        logger.info('Finished!')
 
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
