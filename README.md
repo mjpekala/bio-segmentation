@@ -44,9 +44,13 @@ The code makes a few assumptions as of this writing; some of these are straightf
 ### A Comment About Performance
 The sliding window approach to generating dense predictions worked well for the ISBI 2012 challenge problem; however, it is somewhat computationally expensive.  There are more sophisticated techniques for solving dense prediction problems that one might want to consider if you wish to do things "at scale".  We provide some simple downsampling capabilities that, in conjunction with some fast interpolation or inpainting techniques, can speed things up at relatively low cost to task performance (at least on ISBI 2012).  A non-exhaustive list of papers that provide some more sophisticated approaches to tackling dense prediction problems is given below:
 
-o TODO semantic segmentation
 
-o TODO
+o Giusti, Alessandro, et al. "Fast image scanning with deep max-pooling convolutional neural networks." arXiv preprint arXiv:1302.1700 (2013).
 
-Additionally, more recent efforts have improved upon the task performance of ISBI 2012.   You may want to take a look at some of the papers written by those currently atop the ISBI 2012 leader board for inspiration.   At a minimum, you should be aware that the code provided here delivers a reasonable starting baseline rather than any kind of cutting edge result.
+o Long, Jonathan, Evan Shelhamer, and Trevor Darrell. "Fully convolutional networks for semantic segmentation." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2015.
+
+o Tschopp, Fabian. "Efficient Convolutional Neural Networks for Pixelwise Classification on Heterogeneous Hardware Systems." arXiv preprint arXiv:1509.03371 (2015).
+
+
+Additionally, more recent efforts have improved upon the task performance of ISBI 2012.   You may want to take a look at papers written by those currently atop the ISBI 2012 leader board for inspiration.   At a minimum, you should be aware that the code provided here delivers a reasonable starting baseline as opposed to a cutting edge result.
 
