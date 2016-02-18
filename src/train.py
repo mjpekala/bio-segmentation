@@ -259,7 +259,7 @@ def _train_one_epoch(logger, model, X, Y,
             logger.info("  we are %0.2g%% complete with this epoch" % (100.*epochPct))
             logger.info("  recent accuracy, loss: %0.2f, %0.2f" % (recentAcc, recentLoss))
             fracGPU = (gpuTime/60.)/elapsed
-            logger.info("  pct. time spent on CNN ops.:              %0.2f%%" % (100.*fracGPU))
+            logger.info("  pct. time spent on CNN ops.: %0.2f%%" % (100.*fracGPU))
             logger.info("")
 
     # return statistics
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     model = emm.ciresan_n3()
     sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy', 
-            class_mode='binary', 
+            class_mode='categorical', 
             optimizer=sgd)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
