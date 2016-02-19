@@ -186,6 +186,10 @@ def rescale_01(X, perChannel=True):
 
 
 
+#-------------------------------------------------------------------------------
+# Functions for extracting tiles from images
+#-------------------------------------------------------------------------------
+
 def stratified_interior_pixel_generator(Y, borderSize, batchSize,
                                         mask=None,
                                         omitSlices=[],
@@ -207,10 +211,11 @@ def stratified_interior_pixel_generator(Y, borderSize, batchSize,
     bitMask = np.ones(Y.shape, dtype=bool)
     bitMask[omitSlices,:,:] = 0
 
-    bitMask[:, 0:borderSize, :] = 0
-    bitMask[:, (m-borderSize):m, :] = 0
-    bitMask[:, :, 0:borderSize] = 0
-    bitMask[:, :, (n-borderSize):n] = 0
+    if borderSize > 0: 
+        bitMask[:, 0:borderSize, :] = 0
+        bitMask[:, (m-borderSize):m, :] = 0
+        bitMask[:, :, 0:borderSize] = 0
+        bitMask[:, :, (n-borderSize):n] = 0
 
     if mask is not None:
         bitMask = bitMask & mask
@@ -340,7 +345,6 @@ class SimpleTileExtractor:
             self._Yb = np.zeros([0,0])
 
 
-
     def extract(self, Idx):
         """
         Idx : an (n x 3) matrix, where the columns correspond to pixel
@@ -351,6 +355,8 @@ class SimpleTileExtractor:
         tileWidth = self._Xb.shape[2]
 
         # (re)allocate memory, if needed
+        # Note that if n is less than the previous batch size, old examples
+        # will be reused.  This is intentional.
         if n > self._Xb.shape[0]:
             self._Xb = np.zeros( (n,) + self._Xb.shape[1:], dtype=np.float32)
             self._Yb = np.zeros( (n, self._Yb.shape[1]), dtype=np.float32)
