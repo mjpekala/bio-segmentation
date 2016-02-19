@@ -22,7 +22,7 @@ TRAIN_FULL=--num-epochs 30
 TRAIN_FLAGS=$(TRAIN_FULL)
 
 # Specifies which network weights to use in deploy mode
-WEIGHT_FILE=$(OUT_DIR)/weights_epoch_003.h5 \
+WEIGHT_FILE=$(OUT_DIR)/weights_epoch_010.h5 \
 
 
 #-------------------------------------------------------------------------------
