@@ -335,6 +335,7 @@ class SimpleTileExtractor:
             assert(np.max(yAll) == nClasses-1)
 
             self._Yb = np.zeros([0, nClasses], dtype=np.float32)
+            self._Y = Y
         else:
             self._Yb = np.zeros([0,0])
 
