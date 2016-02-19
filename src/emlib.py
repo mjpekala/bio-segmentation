@@ -151,19 +151,20 @@ def mirror_edges(X, nPixels):
     # the interior of Xm is just X
     Xm[:, :, nPixels:m+nPixels, nPixels:n+nPixels] = X
 
+    # Note we do *not* replicate the pixel on the outer edge of the original image.
     for ii in range(z):
         for jj in range(c):
             # left edge 
-            Xm[ii,jj, :, 0:nPixels] = np.fliplr(Xm[ii,jj, :, nPixels:2*nPixels])
+            Xm[ii,jj, :, 0:nPixels] = np.fliplr(Xm[ii,jj, :, (nPixels+1):(2*nPixels+1)])
 
             # right edge
-            Xm[ii,jj, :, -nPixels:] = np.fliplr(Xm[ii,jj, :, -2*nPixels:-nPixels])
+            Xm[ii,jj, :, -nPixels:] = np.fliplr(Xm[ii,jj, :, (-2*nPixels-1):(-nPixels-1)])
 
             # top edge (fills in corners)
-            Xm[ii,jj, 0:nPixels, :] = np.flipud(Xm[ii,jj, nPixels:2*nPixels, :])
+            Xm[ii,jj, 0:nPixels, :] = np.flipud(Xm[ii,jj, (nPixels+1):(2*nPixels+1), :])
 
             # bottom edge (fills in corners)
-            Xm[ii,jj, -nPixels:, :] = np.flipud(Xm[ii,jj, -2*nPixels:-nPixels, :])
+            Xm[ii,jj, -nPixels:, :] = np.flipud(Xm[ii,jj, (-2*nPixels-1):(-nPixels-1), :])
 
     return Xm
 
@@ -300,6 +301,85 @@ def interior_pixel_generator(X, borderSize, batchSize,
         yield Idx[ii:(ii+nRet)], (1.0*ii+nRet)/Idx.shape[0]
 
 
+
+
+class SimpleTileExtractor:
+    """ Encapsulates the process of extracting tiles/windows centered at
+    provided pixel locations.  This includes issues with mirroring 
+    to handle edge conditions.
+
+    Makes a copy of X under the hood, so may be inappopriate for large
+    data volumes.
+    """
+
+    def __init__(self, tileWidth, X, Y=None):
+        # The tile dimension must be odd and > 1
+        assert(np.mod(tileWidth,2) == 1)
+        assert(tileWidth > 1)
+
+        tileRadius = int(tileWidth/2)
+        self._X = mirror_edges(X, tileRadius)
+
+        # Note: we do not (yet) know how many tiles will be in the batch.
+        #       Defer actually allocating memory until later
+        nChannels = X.shape[1]
+        self._Xb = np.zeros([0, nChannels, tileWidth, tileWidth], dtype=np.float32)
+
+
+        if (Y is not None) and (Y.size > 0):
+            # class labels will be indices into a one-hot vector; make sure
+            # the labels are suitable for this purpose.
+            yAll = np.unique(Y).astype(np.int32)
+            nClasses = yAll.size
+            assert(np.min(yAll) == 0)
+            assert(np.max(yAll) == nClasses-1)
+
+            self._Yb = np.zeros([0, nClasses], dtype=np.float32)
+        else:
+            self._Yb = np.zeros([0,0])
+
+
+
+    def extract(self, Idx):
+        """
+        Idx : an (n x 3) matrix, where the columns correspond to pixel
+              depth, row and column.
+        """
+        assert(Idx.shape[1] == 3)  
+        n = Idx.shape[0]   # n := batch size
+        tileWidth = self._Xb.shape[2]
+
+        # (re)allocate memory, if needed
+        if n > self._Xb.shape[0]:
+            self._Xb = np.zeros( (n,) + self._Xb.shape[1:], dtype=np.float32)
+            self._Yb = np.zeros( (n, self._Yb.shape[1]), dtype=np.float32)
+
+        # Map pixel indices to tiles (and possibly class labels)
+        for jj in range(n):
+            # Note: Idx refers to coordinates in X, so we must account for
+            #       the fact that _X has mirrored edges
+            # Note: the code below is correcting for the 
+            a = Idx[jj,1]
+            b = Idx[jj,1] + tileWidth
+            c = Idx[jj,2]
+            d = Idx[jj,2] + tileWidth
+
+            self._Xb[jj, :, :, :] = self._X[ Idx[jj,0], :, a:b, c:d ]
+
+            if self._Yb.size > 0: 
+                yj = self._Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
+                # store the class label as a 1 hot vector
+                self._Yb[jj,:] = 0
+                self._Yb[jj,yj] = 1
+
+        if self._Yb.size:
+            return self._Xb, self._Yb
+        else:
+            return self._Xb
+
+
+
+#-------------------------------------------------------------------------------
 
 def metrics(Y, Yhat, display=False): 
     """
