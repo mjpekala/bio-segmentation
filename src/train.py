@@ -163,22 +163,6 @@ def _xform_minibatch(X):
 
 
 
-def _minibatch_setup(model, batchSize, nClasses=2):
-    # assuming square tiles with odd dimension
-    nChannels, rows, cols = model.input_shape[1:4]
-    assert(rows == cols)
-    assert(np.mod(rows,2) == 1)
-    tileRadius = int(rows/2)
-
-    # Note: with the Theano backend, it seems the codes are expecting
-    # one hot vectors as class labels.  Hence the second dimension of y.
-    Xi = np.zeros((batchSize, nChannels, rows, cols), dtype=np.float32)
-    yi = np.zeros((batchSize, nClasses), dtype=np.float32)
-
-    return Xi, yi, tileRadius
-
-
-
 
 def _train_one_epoch(logger, model, X, Y, 
                      omitLabels, 
@@ -189,13 +173,9 @@ def _train_one_epoch(logger, model, X, Y,
     #----------------------------------------
     # Pre-allocate some variables & storage.
     #----------------------------------------
-    Xi, yi, tileRadius = _minibatch_setup(model, batchSize)
-
-    # make sure class labels are as expected
-    yAll = np.unique(Y).astype(np.int32)
-    assert(np.min(yAll) == 0);  
-    assert(np.max(yAll) == (len(yAll)-1))
-    assert(len(yAll) == 2) # remove this for multi-class
+    nChannels, nRows, nCols = model.input_shape[1:4]
+    assert(nRows == nCols)
+    ste = emlib.SimpleTileExtractor(nRows, X, Y)
 
     # some variables we'll use for reporting progress    
     lastChatter = -2
@@ -207,38 +187,22 @@ def _train_one_epoch(logger, model, X, Y,
     #----------------------------------------
     # Loop over mini-batches
     #----------------------------------------
-    it = emlib.stratified_interior_pixel_generator(Y,
-                                                   tileRadius,
-                                                   batchSize,
+    it = emlib.stratified_interior_pixel_generator(Y, 0, batchSize,
                                                    omitLabels=omitLabels,
                                                    stopAfter=nBatches*batchSize) 
 
     for mbIdx, (Idx, epochPct) in enumerate(it): 
-        # Map the indices Idx -> tiles Xi and labels yi 
-        # 
-        # Note: if Idx.shape[0] < batchDim[0] (last iteration of an epoch) 
-        # a few examples from the previous minibatch will be "recycled" here. 
-        # This is intentional (to keep batch sizes consistent even if data 
-        # set size is not a multiple of the minibatch size). 
-        # 
-        for jj in range(Idx.shape[0]): 
-            a = Idx[jj,1] - tileRadius 
-            b = Idx[jj,1] + tileRadius + 1 
-            c = Idx[jj,2] - tileRadius 
-            d = Idx[jj,2] + tileRadius + 1 
-            Xi[jj, :, :, :] = X[ Idx[jj,0], :, a:b, c:d ]
-            yj = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
-            yi[jj,:] = 0;  yi[jj,yj] = 1
+        Xi, Yi = ste.extract(Idx)
 
         # label-preserving data transformation (synthetic data generation)
         Xi = _xform_minibatch(Xi)
 
         assert(not np.any(np.isnan(Xi)))
-        assert(not np.any(np.isnan(yi)))
+        assert(not np.any(np.isnan(Yi)))
 
         # do training
         tic = time.time()
-        loss, acc = model.train_on_batch(Xi, yi, accuracy=True)
+        loss, acc = model.train_on_batch(Xi, Yi, accuracy=True)
         gpuTime += time.time() - tic
 
         accBuffer.append(acc);  lossBuffer.append(loss)
@@ -277,16 +241,14 @@ def _evaluate(logger, model, X, Y, batchSize=100):
     #----------------------------------------
     # Pre-allocate some variables & storage.
     #----------------------------------------
-    Xi, yi, tileRadius = _minibatch_setup(model, batchSize)
+    nChannels, tileRows, tileCols = model.input_shape[1:4]
+    tileRadius = int(tileRows/2)
+    ste = emlib.SimpleTileExtractor(tileRows, X)
+
     numClasses = model.output_shape[-1]
     [numZ, numChan, numRows, numCols] = X.shape
     Prob = np.nan * np.ones([numZ, numClasses, numRows, numCols],
                             dtype=np.float32)
-
-    # make sure class labels are as expected
-    yAll = np.unique(Y).astype(np.int32)
-    assert(np.min(yAll) == 0);  
-    assert(np.max(yAll) == (len(yAll)-1))
 
     #----------------------------------------
     # Loop over mini-batches
@@ -294,21 +256,8 @@ def _evaluate(logger, model, X, Y, batchSize=100):
     it = emlib.interior_pixel_generator(X, tileRadius, batchSize)
 
     for mbIdx, (Idx, epochPct) in enumerate(it): 
-        n = Idx.shape[0] # may be < batchSize on final iteration
-
-        # Map pixel indices to tiles
-        for jj in range(n):
-            a = Idx[jj,1] - tileRadius 
-            b = Idx[jj,1] + tileRadius + 1 
-            c = Idx[jj,2] - tileRadius 
-            d = Idx[jj,2] + tileRadius + 1 
-            Xi[jj, :, :, :] = X[ Idx[jj,0], :, a:b, c:d ]
-            yj = Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
-            yi[jj,:] = 0;  yi[jj,yj] = 1
-
-        assert(not np.any(np.isnan(Xi)))
-        assert(not np.any(np.isnan(yi)))
-
+        n = Idx.shape[0]         # may be < batchSize on final iteration
+        Xi = ste.extract(Idx)
         prob = model.predict_on_batch(Xi)
         Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
 
