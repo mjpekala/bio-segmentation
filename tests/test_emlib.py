@@ -51,15 +51,15 @@ class TestEmlib(unittest.TestCase):
         assert(Xm.shape[3] == X.shape[3]+2*b);
 
         # make sure the data looks reasonable
-        self.assertTrue(np.all(Xm[:,:,:,b-1] == Xm[:,:,:,b]))
+        self.assertTrue(np.all(Xm[:,:,:,b-1] == Xm[:,:,:,b+1]))
         self.assertTrue(np.all(Xm[:,:, b:-b, b:-b] == X))
 
         ## another test case
         X = np.zeros((1,1,10,10))
         X[0,0,2,:] = 1
         Xm = emlib.mirror_edges(X, 3)
-        self.assertTrue(np.all(Xm[0,0,0,:] == 1))
-        self.assertTrue(np.all(Xm[0,0,1,:] == 0))
+        self.assertTrue(np.all(Xm[0,0,0,:] == 0))
+        self.assertTrue(np.all(Xm[0,0,1,:] == 1))
         self.assertTrue(np.all(Xm[0,0,2,:] == 0))
         self.assertTrue(np.all(Xm[0,0,3,:] == 0))
         self.assertTrue(np.all(Xm[0,0,4,:] == 0))
@@ -156,6 +156,25 @@ class TestEmlib(unittest.TestCase):
         self.assertTrue(nTotal == 20*20*2*2);
         self.assertTrue(np.all(Y == Z))
 
+
+    def test_tile_extraction(self):
+        z,nChannels,rows,cols = 10, 2, 50, 50
+        tileDim = 3
+        X = np.random.rand(z, nChannels, rows, cols).astype(np.float32)
+        Xout = np.zeros(X.shape, dtype=X.dtype)
+
+        ste = emlib.SimpleTileExtractor(tileDim, X)
+        for zz in range(z):
+            for rr in range(rows):
+                for cc in range(cols):
+                    Idx = np.array([ [zz,rr,cc], [zz,rr,cc]])
+                    Xi = ste.extract(Idx)
+                    self.assertTrue(Xi.shape[0] == 2)
+                    self.assertTrue(Xi.shape[1] == nChannels)
+                    self.assertTrue(Xi.shape[2] == tileDim)
+                    self.assertTrue(Xi.shape[3] == tileDim)
+                    Xout[zz,:,rr,cc] = Xi[0,:,tileDim/2, tileDim/2]
+        self.assertTrue(np.all(Xout == X))
 
 
 
