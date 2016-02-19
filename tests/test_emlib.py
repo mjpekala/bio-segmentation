@@ -161,14 +161,15 @@ class TestEmlib(unittest.TestCase):
         z,nChannels,rows,cols = 10, 2, 50, 50
         tileDim = 3
         X = np.random.rand(z, nChannels, rows, cols).astype(np.float32)
+        Y = np.zeros([z, rows, cols])
         Xout = np.zeros(X.shape, dtype=X.dtype)
 
-        ste = emlib.SimpleTileExtractor(tileDim, X)
+        ste = emlib.SimpleTileExtractor(tileDim, X, Y)
         for zz in range(z):
             for rr in range(rows):
                 for cc in range(cols):
                     Idx = np.array([ [zz,rr,cc], [zz,rr,cc]])
-                    Xi = ste.extract(Idx)
+                    Xi, Yi = ste.extract(Idx)
                     self.assertTrue(Xi.shape[0] == 2)
                     self.assertTrue(Xi.shape[1] == nChannels)
                     self.assertTrue(Xi.shape[2] == tileDim)
