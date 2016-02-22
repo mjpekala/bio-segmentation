@@ -11,7 +11,7 @@ from keras.layers.normalization import BatchNormalization
 
 
 
-def ciresan_n3(n=65):
+def ciresan_n3(n=65, nOutput=2):
     """An approximation of the N3 network from [1].
     Note that we also made a few small modifications along the way
     (from Theano to caffe and now to tensorflow/keras).
@@ -51,12 +51,8 @@ def ciresan_n3(n=65):
     model.add(Activation('relu'))
     #model.add(Dropout(0.5))
 
-    model.add(Dense(2))  # two outputs for binary classification
+    model.add(Dense(nOutput))  # use 2 for binary classification
     model.add(Activation('softmax'))
+
     return model
-
-
-    #sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-    #model.compile(loss='categorical_crossentropy', optimizer=sgd)
-    #model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
 
