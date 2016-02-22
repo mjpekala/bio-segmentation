@@ -61,7 +61,7 @@ def _train_mode_args():
 		    help='(optional) limit to a subset of X/Y validation')
 
     parser.add_argument('--omit-labels', dest='omitLabels', 
-		    type=str, default='', 
+		    type=str, default='[-1,]', 
 		    help='(optional) list of class labels to omit from training')
     
     parser.add_argument('--model', dest='model', 
@@ -165,7 +165,7 @@ def _xform_minibatch(X):
 
 
 def _train_one_epoch(logger, model, X, Y, 
-                     omitLabels, 
+                     omitLabels=[], 
                      batchSize=100,
                      nBatches=sys.maxint):
     """Trains the model for <= one epoch.
@@ -175,7 +175,7 @@ def _train_one_epoch(logger, model, X, Y,
     #----------------------------------------
     nChannels, nRows, nCols = model.input_shape[1:4]
     assert(nRows == nCols)
-    ste = emlib.SimpleTileExtractor(nRows, X, Y)
+    ste = emlib.SimpleTileExtractor(nRows, X, Y, omitLabels=omitLabels)
 
     # some variables we'll use for reporting progress    
     lastChatter = -2
@@ -235,7 +235,7 @@ def _train_one_epoch(logger, model, X, Y,
 
 
 
-def _evaluate(logger, model, X, Y, batchSize=100):
+def _evaluate(logger, model, X, Y, omitLabels=[], batchSize=100):
     """Evaluate model on held-out data.
     """
     #----------------------------------------
@@ -261,10 +261,15 @@ def _evaluate(logger, model, X, Y, batchSize=100):
         prob = model.predict_on_batch(Xi)
         Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
 
-    # evaluate accuracy only on the subset of pixels that were
-    # provided to the CNN (which may exclude the border)
-    Yhat = np.argmax(Prob, axis=1)  # probabilities -> class labels
+    # Evaluate accuracy only on the subset of pixels that:
+    #   o were actually provided to the CNN (not downsampled)
+    #   o have a label that should be evaluated
+    #
+    # The mask tensor M will indicate which pixels to consider.
     M = np.all(np.isfinite(Prob), axis=1)
+    for om in omitLabels:
+        M[Y==om] = False
+    Yhat = np.argmax(Prob, axis=1)  # probabilities -> class labels
     acc = 100.0 * np.sum(Yhat[M] == Y[M]) / np.sum(M)
 
     return Prob, acc
@@ -307,16 +312,23 @@ if __name__ == "__main__":
 
     logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
     logger.info('training values min/max:      %g, %g' % (np.min(Xtrain), np.max(Xtrain)))
+    logger.info('training class labels:        %s' % str(np.unique(Ytrain)))
+    logger.info('')
     logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
     logger.info('validation values min/max:    %g, %g' % (np.min(Xvalid), np.max(Xvalid)))
+    logger.info('validation class labels:      %s' % str(np.unique(Ytrain)))
 
-    # remap class labels to consecutive natural numbers
+    # Remap class labels to consecutive natural numbers.
+    # Note that any pixels that should be omitted from the 
+    # analysis are mapped to -1 by this function.
     Ytrain = emlib.number_classes(Ytrain, args.omitLabels)
     Yvalid = emlib.number_classes(Yvalid, args.omitLabels)
+
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # create and configure CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # XXX: make the learning rate parameters configurable.
     logger.info('creating CNN')
     model = getattr(emm, args.model)() 
     sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
@@ -330,7 +342,7 @@ if __name__ == "__main__":
     for epoch in range(args.nEpochs):
         logger.info('starting training epoch %d' % epoch);
         acc, loss = _train_one_epoch(logger, model, Xtrain, Ytrain, 
-                                     args.omitLabels,
+                                     omitLabels=[-1,],
                                      nBatches=args.nBatches)
 
         # save a snapshot of current model weights
@@ -345,7 +357,7 @@ if __name__ == "__main__":
 
         # Evaluate performance on validation data.
         logger.info('epoch %d complete. validating...' % epoch)
-        Prob, acc = _evaluate(logger, model, Xvalid, Yvalid)
+        Prob, acc = _evaluate(logger, model, Xvalid, Yvalid, omitLabels=[-1,])
         logger.info('accuracy on validation data: %0.2f%%' % acc)
         estFile = os.path.join(args.outDir, "validation_epoch_%03d.npy" % epoch)
         np.save(estFile, Prob)
