@@ -317,7 +317,7 @@ class SimpleTileExtractor:
     data volumes.
     """
 
-    def __init__(self, tileWidth, X, Y=None):
+    def __init__(self, tileWidth, X, Y=None, omitLabels=[]):
         # The tile dimension must be odd and > 1
         assert(np.mod(tileWidth,2) == 1)
         assert(tileWidth > 1)
@@ -332,16 +332,19 @@ class SimpleTileExtractor:
 
 
         if (Y is not None) and (Y.size > 0):
-            # class labels will be indices into a one-hot vector; make sure
+            # Class labels will be indices into a one-hot vector; make sure
             # the labels are suitable for this purpose.
             yAll = np.unique(Y).astype(np.int32)
-            nClasses = yAll.size
+            yAll = [y for y in yAll if y not in omitLabels]
+            nClasses = len(yAll)
             assert(np.min(yAll) == 0)
             assert(np.max(yAll) == nClasses-1)
 
             self._Yb = np.zeros([0, nClasses], dtype=np.float32)
             self._Y = Y
         else:
+            # No class labels provided; this is fine.  The extract()
+            # method will only return tiles from X.
             self._Yb = np.zeros([0,0])
 
 
