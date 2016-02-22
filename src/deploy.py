@@ -26,7 +26,6 @@ import pdb
 
 import emlib
 import models as emm
-from train import _minibatch_setup
 
 from sobol_lib import i4_sobol_generate as sobol
 
@@ -110,7 +109,8 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
     #----------------------------------------
     # Pre-allocate some variables & storage.
     #----------------------------------------
-    Xi, unused, tileRadius = _minibatch_setup(model, batchSize)
+    nChannels, tileRows, tileCols = model.input_shape[1:4]
+    ste = emlib.SimpleTileExtractor(tileRows, X)
 
     lastChatter = -2
     startTime = time.time()
@@ -119,20 +119,11 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
     Mask = _downsample_mask(X, evalPct)
     logger.info('after masking, will evaluate %0.2f%% of data' % (100.0*np.sum(Mask)/Mask.size))
 
-    # Mirror edges (so that we can evaluate the entire volume)
-    Xm = emlib.mirror_edges(X, tileRadius)
-
-    Mask = emlib.mirror_edges(Mask, tileRadius)
-    Mask[:,:,0:tileRadius,:] = False
-    Mask[:,:,-tileRadius:,:] = False
-    Mask[:,:,:,0:tileRadius] = False
-    Mask[:,:,:,-tileRadius:] = False
-
     # Create storage for class probabilities.
     # Note that we store all class probabilities, even if this
     # is a binary classification problem (in which case p(1) = 1 - p(0)).
     # We do this to support multiclass classification seamlessly.
-    [numZ, numChan, numRows, numCols] = Xm.shape
+    [numZ, numChan, numRows, numCols] = X.shape
     numClasses = model.output_shape[-1]
     Prob = np.nan * np.ones([numZ, numClasses, numRows, numCols], 
                             dtype=np.float32)
@@ -140,20 +131,12 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
     #----------------------------------------
     # Loop over mini-batches
     #----------------------------------------
-    it = emlib.interior_pixel_generator(Xm, tileRadius, batchSize, mask=Mask)
+    # note: set tileRadius to 0 so we evaluate whole volume
+    it = emlib.interior_pixel_generator(X, 0, batchSize, mask=Mask)
 
     for mbIdx, (Idx, epochPct) in enumerate(it): 
         n = Idx.shape[0] # may be < batchSize on final iteration
-        assert(Idx.shape[1] == 3)
-
-        # Map pixel indices to tiles
-        for jj in range(n):
-            a = Idx[jj,1] - tileRadius 
-            b = Idx[jj,1] + tileRadius + 1 
-            c = Idx[jj,2] - tileRadius 
-            d = Idx[jj,2] + tileRadius + 1 
-            Xi[jj, :, :, :] = Xm[ Idx[jj,0], :, a:b, c:d ]
-
+        Xi = ste.extract(Idx)
         prob = model.predict_on_batch(Xi)
         Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
 
@@ -163,8 +146,6 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
             lastChatter = elapsed
             logger.info("  last pixel %s (%0.2f%% complete)" % (str(Idx[-1,:]), 100.*epochPct))
 
-    # discard mirrored portion before returning
-    Prob = Prob[:, :, tileRadius:-tileRadius, tileRadius:-tileRadius]
     return Prob
 
 
