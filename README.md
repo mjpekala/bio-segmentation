@@ -36,6 +36,8 @@ The sliding window approach to generating dense predictions worked well for the 
 
 - Giusti, Alessandro, et al. "Fast image scanning with deep max-pooling convolutional neural networks." arXiv preprint arXiv:1302.1700 (2013).
 
+- Iandola et al. "DenseNet: Implementing Efficient ConvNet Descriptor Pyramids," Technical Report UC Berkeley, 2014.
+
 - Long, Jonathan, Evan Shelhamer, and Trevor Darrell. "Fully convolutional networks for semantic segmentation." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2015.
 
 - Tschopp, Fabian. "Efficient Convolutional Neural Networks for Pixelwise Classification on Heterogeneous Hardware Systems." arXiv preprint arXiv:1509.03371 (2015).
