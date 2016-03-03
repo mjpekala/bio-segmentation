@@ -1,0 +1,50 @@
+# Example of training/deploying CNN for the VESICLE data set.
+# 
+# mjp Feb, 2016
+
+
+include make.inc
+
+
+DATA=./data/VESICLE
+OUT_DIR=./Models/VESICLE
+
+# Use TRAIN_QUICK as a dry run to make sure training runs end-to-end; 
+# Use TRAIN_FULL if you want a reasonable model.
+# 
+TRAIN_QUICK=--num-mb-per-epoch 500 --num-epochs 1
+TRAIN_FULL=--num-epochs 30
+TRAIN_FLAGS=$(TRAIN_FULL)
+
+# Specifies which network weights to use in deploy mode
+WEIGHT_FILE=$(OUT_DIR)/weights_epoch_029.h5
+
+
+#-------------------------------------------------------------------------------
+default :
+	@echo ""
+	@echo "Please pick a specific target"
+	@echo ""
+
+
+train :
+	$(PY) ./src/train.py \
+		--x-train $(DATA)/X_train.mat \
+		--train-slices "range(0,50)" \
+		--y-train $(DATA)/Y_train2.mat \
+		--x-valid $(DATA)/X_train.mat \
+		--y-valid $(DATA)/Y_train2.mat \
+		--valid-slices "range(50,60)"  \
+		--out-dir $(OUT_DIR) \
+		$(TRAIN_FLAGS)
+
+
+deploy :
+	$(PY) ./src/deploy.py \
+		--x $(DATA)/X_train.mat \
+		--slices "range(80,100)" \
+		--weight-file $(WEIGHT_FILE) \
+		--out-file $(OUT_DIR)/Prob_test.npy
+
+clean :
+	\rm -rf $(OUT_DIR)
