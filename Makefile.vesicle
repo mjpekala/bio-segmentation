@@ -1,5 +1,8 @@
 # Example of training/deploying CNN for the VESICLE data set.
 # 
+# Assumes you will invoke this makefile from the pwd.  
+# Otherwise, you need to fix some paths.
+# 
 # mjp Feb, 2016
 
 
@@ -39,12 +42,29 @@ train :
 		$(TRAIN_FLAGS)
 
 
+# Deploy on VESICLE (Kasthuri) data set
 deploy :
 	$(PY) ./src/deploy.py \
 		--x $(DATA)/X_train.mat \
 		--slices "range(80,100)" \
 		--weight-file $(WEIGHT_FILE) \
 		--out-file $(OUT_DIR)/Prob_test.npy
+
+#----------------------------------------
+# Deploy on ISBI-2012 data set
+#----------------------------------------
+deploy-isbi-train :
+	$(PY) ./src/deploy.py \
+		--x ./data/ISBI2012/train-volume.tif \
+		--weight-file $(WEIGHT_FILE) \
+		--out-file $(OUT_DIR)/isbi2012_train.npy
+
+deploy-isbi-test :
+	$(PY) ./src/deploy.py \
+		--x ./data/ISBI2012/test-volume.tif \
+		--weight-file $(WEIGHT_FILE) \
+		--out-file $(OUT_DIR)/isbi2012_test.npy
+
 
 clean :
 	\rm -rf $(OUT_DIR)
