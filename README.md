@@ -22,7 +22,7 @@ To train a CNN do:
 
 Note that training can take a long time; if you are running the code on a remote system you may prefer to do something like:
 ```
-(nohup make -f Makefile.isbi train &) > train.large.isbi.out
+(nohup make -f Makefile.isbi GPU=2 train &) > train.large.isbi.out
 ```
 
 Once training is complete (or, alternately, using the provided weights we generated) you can evaluate (subsets of) the ISBI test volume via one of:
