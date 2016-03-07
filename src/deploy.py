@@ -171,8 +171,8 @@ if __name__ == "__main__":
     # rescale features to live in [0, 1]
     X = emlib.rescale_01(X, perChannel=True)
 
-    logger.info('volume dimensions:   %s' % str(X.shape))
-    logger.info('values min/max:      %g, %g' % (np.min(X), np.max(X)))
+    logger.info('X volume dimensions: %s' % str(X.shape))
+    logger.info('X values min/max:    %g, %g' % (np.min(X), np.max(X)))
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # initialize CNN
