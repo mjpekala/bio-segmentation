@@ -110,10 +110,11 @@ def _xform_minibatch(X):
 
 
 
-def _train_one_epoch(logger, model, X, Y, 
+def _train_one_epoch(model, X, Y, 
                      omitLabels=[], 
                      batchSize=100,
-                     nBatches=sys.maxint):
+                     nBatches=sys.maxint,
+                     log=None):
     """Trains the model for one epoch.
     """
     #----------------------------------------
@@ -169,19 +170,20 @@ def _train_one_epoch(logger, model, X, Y,
                 recentAcc = np.mean(accBuffer[-10:])
                 recentLoss = np.mean(lossBuffer[-10:])
 
-            logger.info("  just completed mini-batch %d" % mbIdx)
-            logger.info("  we are %0.2g%% complete with this epoch" % (100.*epochPct))
-            logger.info("  recent accuracy, loss: %0.2f, %0.2f" % (recentAcc, recentLoss))
-            fracGPU = (gpuTime/60.)/elapsed
-            logger.info("  pct. time spent on CNN ops.: %0.2f%%" % (100.*fracGPU))
-            logger.info("")
+            if log:
+                log.info("  just completed mini-batch %d" % mbIdx)
+                log.info("  we are %0.2g%% complete with this epoch" % (100.*epochPct))
+                log.info("  recent accuracy, loss: %0.2f, %0.2f" % (recentAcc, recentLoss))
+                fracGPU = (gpuTime/60.)/elapsed
+                log.info("  pct. time spent on CNN ops.: %0.2f%%" % (100.*fracGPU))
+                log.info("")
 
     # return statistics
     return accBuffer, lossBuffer
 
 
 
-def _evaluate(logger, model, X, Y, omitLabels=[], batchSize=100):
+def _evaluate(model, X, Y, omitLabels=[], batchSize=100, log=None):
     """Evaluate model on held-out data.  Here, used to periodically
     report performance on validation data.
     """
@@ -234,6 +236,7 @@ def train_model(Xtrain, Ytrain,
                 momentum=0.9,
                 maxMbPerEpoch=sys.maxint,
                 nEpochs=30,
+                log=None,
                 outDir=None):
     """Trains a CNN using Keras.
 
@@ -252,18 +255,8 @@ def train_model(Xtrain, Ytrain,
                    all available pixel data.
 
     """
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # setup logging and output directory
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    logger = logging.getLogger('train_model')
-    logger.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
-    ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
-    logger.addHandler(ch)
-
     if not outDir: 
-        logger.warning('No output directory specified - are you sure this is what you want?')
+        if log: log.warning('No output directory specified - are you sure this is what you want?')
     elif not os.path.exists(outDir): 
         os.makedirs(outDir)
 
@@ -293,19 +286,20 @@ def train_model(Xtrain, Ytrain,
     Yvalid = emlib.number_classes(Yvalid, omitLabels)
 
 
-    logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
-    logger.info('training values min/max:      %g, %g' % (np.min(Xtrain), np.max(Xtrain)))
-    logger.info('training class labels:        %s' % str(np.unique(Ytrain)))
-    logger.info('')
-    logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
-    logger.info('validation values min/max:    %g, %g' % (np.min(Xvalid), np.max(Xvalid)))
-    logger.info('validation class labels:      %s' % str(np.unique(Yvalid)))
+    if log: 
+        log.info('training volume dimensions:   %s' % str(Xtrain.shape))
+        log.info('training values min/max:      %g, %g' % (np.min(Xtrain), np.max(Xtrain)))
+        log.info('training class labels:        %s' % str(np.unique(Ytrain)))
+        log.info('')
+        log.info('validation volume dimensions: %s' % str(Xvalid.shape))
+        log.info('validation values min/max:    %g, %g' % (np.min(Xvalid), np.max(Xvalid)))
+        log.info('validation class labels:      %s' % str(np.unique(Yvalid)))
 
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # create and configure CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    logger.info('creating CNN')
+    if log: log.info('creating CNN')
     model = getattr(emm, modelName)() 
     sgd = SGD(lr=learnRate0, decay=weightDecay, momentum=momentum, nesterov=True)
     model.compile(loss='categorical_crossentropy', 
@@ -316,8 +310,9 @@ def train_model(Xtrain, Ytrain,
     # Do training
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     for epoch in range(nEpochs):
-        logger.info('starting training epoch %d (of %d)' % (epoch, nEpochs));
-        acc, loss = _train_one_epoch(logger, model, Xtrain, Ytrain, 
+        if log: log.info('starting training epoch %d (of %d)' % (epoch, nEpochs));
+        acc, loss = _train_one_epoch(model, Xtrain, Ytrain, 
+                                     log=log,
                                      omitLabels=[-1,],
                                      nBatches=maxMbPerEpoch)
 
@@ -333,16 +328,16 @@ def train_model(Xtrain, Ytrain,
             np.save(accFile, acc)
 
         # Evaluate performance on validation data.
-        logger.info('epoch %d complete. validating...' % epoch)
-        Prob, acc = _evaluate(logger, model, Xvalid, Yvalid, omitLabels=[-1,])
-        logger.info('accuracy on validation data: %0.2f%%' % acc)
+        if log: log.info('epoch %d complete. validating...' % epoch)
+        Prob, acc = _evaluate(model, Xvalid, Yvalid, omitLabels=[-1,], log=log)
+        if log: log.info('accuracy on validation data: %0.2f%%' % acc)
 
         if outDir: 
             estFile = os.path.join(outDir, "validation_epoch_%03d.npy" % epoch)
             np.save(estFile, Prob)
 
 
-    logger.info('Finished!')
+    if log: log.info('Finished!')
     return model
 
 
@@ -419,7 +414,17 @@ def dict_subset(dictIn, keySubset):
 
 
 if __name__ == "__main__":
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # setup logging and output directory
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    logger = logging.getLogger('train_model')
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
+    logger.addHandler(ch)
+
     args = _train_mode_args()
+
 
     # Use command line args to override default args for train_model().
     # Note to self: the first co_argcount varnames are the 
@@ -439,7 +444,7 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # do it
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    model = train_model(Xtrain, Ytrain, Xvalid, Yvalid, **cmdLineArgs)
+    model = train_model(Xtrain, Ytrain, Xvalid, Yvalid, log=logger, **cmdLineArgs)
 
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
