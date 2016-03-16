@@ -240,20 +240,29 @@ def train_model(Xtrain, Ytrain,
                 outDir=None):
     """Trains a CNN using Keras.
 
+    Some of the key parameters include:
+
       Xtrain, Ytrain : Tensors of features and per-pixel class labels with
                        dimensions as specified in (1),(2)
       Xvalid, Yalid :  Tensors of features and per-pixel class labels with
                        dimensions as specified in (1),(2).  Presumed to
                        be held-out data (i.e. disjoint from X/Ytrain)
 
-      trainSlices : A list of slice indices to omit from training
-                    (or [] to use all the data)
-      validSlices : A list of slice indices to omit from validation
-                    (or [] to use all the data)
-      omitLabels : A list of class labels whose corresponding pixel data
-                   should be omitted from train and test.  If [], uses
-                   all available pixel data.
+      trainSlices   : A list of slice indices to omit from training
+                      (or [] to use all the data)
+      validSlices   : A list of slice indices to omit from validation
+                      (or [] to use all the data)
+      omitLabels    : A list of class labels whose corresponding pixel data
+                      should be omitted from train and test.  If [], uses
+                      all data.
 
+      maxMbPerEpoch : The maximum number of minibatches to run in each
+                      epoch (default is to process entire data volume
+                      each epoch).
+
+      log           : a logging object (for reporting status)
+      outDir        : if not None, a directory where model weights
+                      will be stored (highly recommended)
     """
     if not outDir: 
         if log: log.warning('No output directory specified - are you sure this is what you want?')
