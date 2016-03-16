@@ -32,50 +32,6 @@ from sobol_lib import i4_sobol_generate as sobol
 
 
 
-def _deploy_mode_args():
-    """Parameters for deploying a CNN.
-    """
-    parser = argparse.ArgumentParser()
-    
-    parser.add_argument('--x', dest='emFile', 
-		    type=str, required=True,
-		    help='Filename of volume to evaluate')
-
-    parser.add_argument('--model', dest='model', 
-		    type=str, default='ciresan_n3',
-		    help='name of CNN model to use (python function)')
-    parser.add_argument('--weight-file', dest='weightFile', 
-		    type=str, required=True,
-		    help='CNN weights to use')
-
-    parser.add_argument('--slices', dest='slices', 
-		    type=str, default='', 
-		    help='(optional) subset of slices to evaluate')
-    parser.add_argument('--eval-pct', dest='evalPct', 
-		    type=float, default=1.0, 
-		    help='(optional) Percent of pixels to evaluate (in [0,1])')
-
-    parser.add_argument('--out-file', dest='outFile', 
-		    type=str, required=True,
-		    help='Ouput file name (will contain probability estimates)')
-
-    args = parser.parse_args()
-
-    if not os.path.exists(os.path.dirname(args.outFile)):
-        os.makedirs(os.path.dirname(args.outFile))
-
-    if not args.outFile.endswith('.npy'):
-        args.outFile += '.npy'
-
-    # Map strings into python objects.  
-    # A little gross to use eval, but life is short.
-    str_to_obj = lambda x: eval(x) if x else []
-    
-    args.slices = str_to_obj(args.slices)
-    
-    return args
-
-
 
 def _downsample_mask(X, pct):
     """ Create a boolean mask indicating which subset of X should be 
@@ -150,23 +106,35 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
 
 
 
-#-------------------------------------------------------------------------------
-if __name__ == "__main__":
-    args = _deploy_mode_args()
 
-    # setup logging
-    logger = logging.getLogger(__name__)
+def deploy_model(X, weightsFile,
+                 slices=[],
+                 modelName='ciresan_n3',
+                 evalPct=1.0,
+                 outFile=None):
+    """ Applies a previously trained CNN to new data.
+    """
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # setup logging and output directory
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    logger = logging.getLogger("deploy_model")
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
     logger.addHandler(ch)
 
+    if not outFile: 
+        logger.warning('No output file specified - are you sure this is what you want?')
+    elif not os.path.exists(os.path.dirname(outFile)):
+        os.makedirs(os.path.dirname(outFile))
+
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # load data volume
+    # preprocess data
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    X = emlib.load_cube(args.emFile)
-    if args.slices:
-        X = X[args.slices,:,:]
+    if slices:
+        X = X[slices,:,:]
 
     # rescale features to live in [0, 1]
     X = emlib.rescale_01(X, perChannel=True)
@@ -178,21 +146,94 @@ if __name__ == "__main__":
     # initialize CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     logger.info('initializing CNN...')
-    model = getattr(emm, args.model)() 
+    model = getattr(emm, modelName)() 
     model.compile(optimizer='sgd',   # not used, but required by keras
                   loss='categorical_crossentropy',
                   class_mode='categorical')
-    model.load_weights(args.weightFile)
+    model.load_weights(weightsFile)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Do it
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     logger.info('evaluating volume...')
-    Prob = _evaluate(logger, model, X, evalPct=args.evalPct)
-    np.save(args.outFile, Prob)
-    scipy.io.savemat(args.outFile.replace('.npy', '.mat'), {'P' : Prob})
+    Prob = _evaluate(logger, model, X, evalPct=evalPct)
 
-    logger.info('Complete!  Probabilites stored in file %s' % args.outFile)
+    if outFile: 
+        np.save(outFile, Prob) 
+        scipy.io.savemat(outFile.replace('.npy', '.mat'), {'P' : Prob})
+        logger.info('Complete!  Probabilites stored in file %s' % outFile)
 
+    return Prob
+
+
+
+#-------------------------------------------------------------------------------
+# Code for command-line interface
+#-------------------------------------------------------------------------------
+
+def _deploy_mode_args():
+    """Parameters for deploying a CNN.
+    """
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--x', dest='emFile', 
+		    type=str, required=True,
+		    help='Filename of volume to evaluate')
+
+    parser.add_argument('--model', dest='modelName', 
+		    type=str, default='ciresan_n3',
+		    help='name of CNN model to use (python function)')
+
+    parser.add_argument('--weight-file', dest='weightFile', 
+		    type=str, required=True,
+		    help='CNN weights to use')
+
+    parser.add_argument('--slices', dest='slices', 
+		    type=str, default='', 
+		    help='(optional) subset of slices to evaluate')
+
+    parser.add_argument('--eval-pct', dest='evalPct', 
+		    type=float, default=1.0, 
+		    help='(optional) Percent of pixels to evaluate (in [0,1])')
+
+    parser.add_argument('--out-file', dest='outFile', 
+		    type=str, required=True,
+		    help='Ouput file name (will contain probability estimates)')
+
+    args = parser.parse_args()
+
+    if not os.path.exists(os.path.dirname(args.outFile)):
+        os.makedirs(os.path.dirname(args.outFile))
+
+    if not args.outFile.endswith('.npy'):
+        args.outFile += '.npy'
+
+    # Map strings into python objects.  
+    # A little gross to use eval, but life is short.
+    str_to_obj = lambda x: eval(x) if x else []
+    
+    args.slices = str_to_obj(args.slices)
+    
+    return args
+
+
+
+
+if __name__ == "__main__":
+    from train import dict_subset
+
+    args = _deploy_mode_args()
+
+    # Use command line args to override default args for train_model().
+    # Note to self: the first co_argcount varnames are the 
+    #               function's parameters.
+    validArgs = deploy_model.__code__.co_varnames[0:deploy_model.__code__.co_argcount]
+    cmdLineArgs = dict_subset(vars(args), validArgs)
+
+    # load data volume
+    X = emlib.load_cube(args.emFile)
+
+    # do it
+    result = deploy_model(X, args.weightFile, **cmdLineArgs)
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
