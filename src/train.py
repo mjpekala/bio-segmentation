@@ -248,9 +248,9 @@ def train_model(Xtrain, Ytrain,
                        dimensions as specified in (1),(2).  Presumed to
                        be held-out data (i.e. disjoint from X/Ytrain)
 
-      trainSlices   : A list of slice indices to omit from training
+      trainSlices   : A list of slice indices to include in training
                       (or [] to use all the data)
-      validSlices   : A list of slice indices to omit from validation
+      validSlices   : A list of slice indices to include in validation
                       (or [] to use all the data)
       omitLabels    : A list of class labels whose corresponding pixel data
                       should be omitted from train and test.  If [], uses

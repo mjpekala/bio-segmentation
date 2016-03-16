@@ -2,12 +2,15 @@
 
  See train.py for an example of how to train a CNN.
 
+ Note that this script all image data volumes have dimensions:
+
+ (1)         #slices x #channels x rows x colums
+
 
  Notes: 
    o Currently assumes input image data is single channel (i.e. grayscale).
    o Output probability values of -1 indicate pixels that were not 
      evaluated (e.g. due to boundary conditions or downsampling).
-
 """
 
 __author__ = "Mike Pekala"
@@ -113,6 +116,14 @@ def deploy_model(X, weightsFile,
                  evalPct=1.0,
                  outFile=None):
     """ Applies a previously trained CNN to new data.
+
+
+      Xtrain        : Tensor of features with dimensions as specified in (1)
+      trainSlices   : A list of slice indices to evalute 
+                      (or [] to use all the data)
+      log           : a logging object (for reporting status)
+      outFile       : File name where class probabilities should be stored
+      evalPct       : Fraction of volume to evalute; \in [0,1]
     """
 
     # Setup output file/dirctory
