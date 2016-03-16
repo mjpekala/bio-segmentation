@@ -15,7 +15,7 @@ This code requires you install [Keras](http://keras.io/) along with a suitable b
 
 An example is provided for the [ISBI 2012 membrane segmentation challenge problem](http://brainiac2.mit.edu/isbi_challenge/).  Before running this example you will need to download the ISBI 2012 data set (using the link above) and place the .tif files in the directory ./data/ISBI2012. At this point you are ready to train and deploy a CNN.  The provided [Makefile](./Makefile) automates this process.
 
-To train a CNN do:
+*To train a CNN*:
 ```
     make -f Makefile.isbi train
 ```
@@ -25,14 +25,14 @@ Note that training can take a long time; if you are running the code on a remote
 (nohup make -f Makefile.isbi GPU=2 train &) > train.large.isbi.out
 ```
 
-Once training is complete (or, alternately, using the provided weights we generated) you can evaluate (subsets of) the ISBI test volume via one of:
+*To deploy a CNN*, once training is complete you can evaluate (subsets of) the ISBI test volume via one of:
 ```
     make -f Makefile.isbi deploy 
     make -f Makefile.isbi deploy-slice0
     make -f Makefile.isbi deploy-sub
 ```
 
-Alternatively, a simple example (in the form of a Jupyter notebook) is provided [here](./isbi2012_deploy.ipynb).
+Alternatively, there is a [simple example](./isbi2012_deploy.ipynb) in the form of a Jupyter notebook.
 
 
 ## Comments About Performance
