@@ -5,8 +5,8 @@
 
  Notes: 
    o Currently assumes input image data is single channel (i.e. grayscale).
-   o Output probability values of NaN indicate pixels that were not 
-     evaluated (e.g. due to boundary conditions or downsampling)
+   o Output probability values of -1 indicate pixels that were not 
+     evaluated (e.g. due to boundary conditions or downsampling).
 
 """
 
@@ -81,8 +81,7 @@ def _evaluate(model, X, log=None, batchSize=100, evalPct=1.0):
     # We do this to support multiclass classification seamlessly.
     [numZ, numChan, numRows, numCols] = X.shape
     numClasses = model.output_shape[-1]
-    Prob = np.nan * np.ones([numZ, numClasses, numRows, numCols], 
-                            dtype=np.float32)
+    Prob = -1*np.ones([numZ, numClasses, numRows, numCols], dtype=np.float32)
 
     #----------------------------------------
     # Loop over mini-batches
@@ -234,6 +233,6 @@ if __name__ == "__main__":
     X = emlib.load_cube(args.emFile)
 
     # do it
-    result = deploy_model(X, args.weightFile, log=logger, **cmdLineArgs)
+    Prob = deploy_model(X, args.weightFile, log=logger, **cmdLineArgs)
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
