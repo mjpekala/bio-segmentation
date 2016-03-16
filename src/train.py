@@ -1,17 +1,21 @@
 """  Trains a CNN for dense (i.e. per-pixel) classification problems.
 
- Notes: 
-   o Currently assumes image data volumes have dimensions:
-            #slices x #channels x rows x colums
+ The typical usage for this script is to run from the command line
+ (often with nohup or equivalent, since it takes a long time).  
+ However, it is possible to call the train_model() function directly
+ from within a python shell or ipython notebook if desired.
 
-     while label volumes have dimensions:
-            #slices x rows x colums
+ Note that this script all image data volumes have dimensions:
 
-   o When using caffe, it was straightforward to set the gpu id here.  
-     I believe for keras this is controlled by the backend (e.g. theano).
-     So, for the time being, you need to set the gpu id to use externally
-     from this script.
+ (1)         #slices x #channels x rows x colums
 
+ and all label volumes have dimensions:
+
+ (2)         #slices x rows x colums
+
+
+ To set the gpu id (from the command line) use the THEANO_FLAGS 
+ environment variable
 """
 
 __author__ = "Mike Pekala"
@@ -33,66 +37,6 @@ import emlib
 import models as emm
 
 
-
-
-def _train_mode_args():
-    """Parameters for training a CNN.
-    """
-    parser = argparse.ArgumentParser()
-    
-    parser.add_argument('--x-train', dest='emTrainFile', 
-		    type=str, required=True,
-		    help='Filename of the training volume (train mode)')
-    parser.add_argument('--y-train', dest='labelsTrainFile', 
-		    type=str, required=True,
-		    help='Filename of the training labels (train mode)')
-    parser.add_argument('--train-slices', dest='trainSlices', 
-		    type=str, default='', 
-		    help='(optional) limit to a subset of X/Y train')
-
-    parser.add_argument('--x-valid', dest='emValidFile', 
-		    type=str, required=True,
-		    help='Filename of the validation volume (train mode)')
-    parser.add_argument('--y-valid', dest='labelsValidFile', 
-		    type=str, required=True,
-		    help='Filename of the validation labels (train mode)')
-    parser.add_argument('--valid-slices', dest='validSlices', 
-		    type=str, default='', 
-		    help='(optional) limit to a subset of X/Y validation')
-
-    parser.add_argument('--omit-labels', dest='omitLabels', 
-		    type=str, default='[-1,]', 
-		    help='(optional) list of class labels to omit from training')
-    
-    parser.add_argument('--model', dest='model', 
-		    type=str, default='ciresan_n3',
-		    help='name of CNN model to use (python function)')
-    parser.add_argument('--num-epochs', dest='nEpochs', 
-		    type=int, default=30,
-		    help='number of training epochs')
-    parser.add_argument('--num-mb-per-epoch', dest='nBatches', 
-		    type=int, default=sys.maxint,
-		    help='maximum number of mini-batches to process each epoch')
-
-    parser.add_argument('--out-dir', dest='outDir', 
-		    type=str, default='', 
-		    help='directory where the trained file should be placed')
-
-    args = parser.parse_args()
-
-    if not os.path.exists(args.outDir):
-        os.makedirs(args.outDir)
-
-
-    # Map strings into python objects.  
-    # A little gross to use eval, but life is short.
-    str_to_obj = lambda x: eval(x) if x else []
-    
-    args.trainSlices = str_to_obj(args.trainSlices)
-    args.validSlices = str_to_obj(args.validSlices)
-    args.omitLabels = str_to_obj(args.omitLabels)
-    
-    return args
 
 
 
@@ -156,6 +100,8 @@ def _xform_minibatch(X):
     # (e.g. changing from C order to Fortran order) to implement this 
     # efficiently which is incompatible w/ PyCaffe.  
     # Hence the explicit construction of X2 with order 'C' below.
+    #
+    # Not sure this matters for Theano/Keras, but leave in place anyway.
     X2 = np.zeros(X.shape, dtype=np.float32, order='C') 
     X2[...] = op(X)
 
@@ -168,7 +114,7 @@ def _train_one_epoch(logger, model, X, Y,
                      omitLabels=[], 
                      batchSize=100,
                      nBatches=sys.maxint):
-    """Trains the model for <= one epoch.
+    """Trains the model for one epoch.
     """
     #----------------------------------------
     # Pre-allocate some variables & storage.
@@ -236,7 +182,8 @@ def _train_one_epoch(logger, model, X, Y,
 
 
 def _evaluate(logger, model, X, Y, omitLabels=[], batchSize=100):
-    """Evaluate model on held-out data.
+    """Evaluate model on held-out data.  Here, used to periodically
+    report performance on validation data.
     """
     #----------------------------------------
     # Pre-allocate some variables & storage.
@@ -276,33 +223,62 @@ def _evaluate(logger, model, X, Y, omitLabels=[], batchSize=100):
 
 
 
-#-------------------------------------------------------------------------------
-if __name__ == "__main__":
-    args = _train_mode_args()
-    
-    # setup logging
-    logger = logging.getLogger(__name__)
+def train_model(Xtrain, Ytrain,
+                Xvalid, Yvalid,
+                trainSlices=[],
+                validSlices=[],
+                omitLabels=[],
+                modelName='ciresan_n3',
+                learnRate0=0.01,
+                weightDecay=1e-6,
+                momentum=0.9,
+                maxMbPerEpoch=sys.maxint,
+                nEpochs=30,
+                outDir=None):
+    """Trains a CNN using Keras.
+
+      Xtrain, Ytrain : Tensors of features and per-pixel class labels with
+                       dimensions as specified in (1),(2)
+      Xvalid, Yalid :  Tensors of features and per-pixel class labels with
+                       dimensions as specified in (1),(2).  Presumed to
+                       be held-out data (i.e. disjoint from X/Ytrain)
+
+      trainSlices : A list of slice indices to omit from training
+                    (or [] to use all the data)
+      validSlices : A list of slice indices to omit from validation
+                    (or [] to use all the data)
+      omitLabels : A list of class labels whose corresponding pixel data
+                   should be omitted from train and test.  If [], uses
+                   all available pixel data.
+
+    """
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # setup logging and output directory
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    logger = logging.getLogger('train_model')
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
     logger.addHandler(ch)
 
-    logger.info(str(args))
+    if not outDir: 
+        logger.warning('No output directory specified - are you sure this is what you want?')
+    elif not os.path.exists(outDir): 
+        os.makedirs(outDir)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # load training and validation volumes
+    # preprocess data
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Xtrain = emlib.load_cube(args.emTrainFile, addChannel=True)
-    Ytrain = emlib.load_cube(args.labelsTrainFile, addChannel=False)
-    if args.trainSlices:
-        Xtrain = Xtrain[args.trainSlices,:,:,:]
-        Ytrain = Ytrain[args.trainSlices,:,:]
-        
-    Xvalid = emlib.load_cube(args.emValidFile, addChannel=True)
-    Yvalid = emlib.load_cube(args.labelsValidFile, addChannel=False)
-    if args.validSlices:
-        Xvalid = Xvalid[args.validSlices,:,:,:]
-        Yvalid = Yvalid[args.validSlices,:,:]
+
+    # discard unneeded slices (if any)
+    if trainSlices:
+        Xtrain = Xtrain[trainSlices,:,:,:]
+        Ytrain = Ytrain[trainSlices,:,:]
+
+    if validSlices:
+        Xvalid = Xvalid[validSlices,:,:,:]
+        Yvalid = Yvalid[validSlices,:,:]
 
     # rescale features to live in [0 1]
     # XXX: technically, should probably use scale factors from
@@ -310,28 +286,28 @@ if __name__ == "__main__":
     Xtrain = emlib.rescale_01(Xtrain, perChannel=True)
     Xvalid = emlib.rescale_01(Xvalid, perChannel=True)
 
+    # Remap class labels to consecutive natural numbers.
+    # Note that any pixels that should be omitted from the 
+    # analysis are mapped to -1 by this function.
+    Ytrain = emlib.number_classes(Ytrain, omitLabels)
+    Yvalid = emlib.number_classes(Yvalid, omitLabels)
+
+
     logger.info('training volume dimensions:   %s' % str(Xtrain.shape))
     logger.info('training values min/max:      %g, %g' % (np.min(Xtrain), np.max(Xtrain)))
     logger.info('training class labels:        %s' % str(np.unique(Ytrain)))
     logger.info('')
     logger.info('validation volume dimensions: %s' % str(Xvalid.shape))
     logger.info('validation values min/max:    %g, %g' % (np.min(Xvalid), np.max(Xvalid)))
-    logger.info('validation class labels:      %s' % str(np.unique(Ytrain)))
-
-    # Remap class labels to consecutive natural numbers.
-    # Note that any pixels that should be omitted from the 
-    # analysis are mapped to -1 by this function.
-    Ytrain = emlib.number_classes(Ytrain, args.omitLabels)
-    Yvalid = emlib.number_classes(Yvalid, args.omitLabels)
+    logger.info('validation class labels:      %s' % str(np.unique(Yvalid)))
 
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # create and configure CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # XXX: make the learning rate parameters configurable.
     logger.info('creating CNN')
-    model = getattr(emm, args.model)() 
-    sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+    model = getattr(emm, modelName)() 
+    sgd = SGD(lr=learnRate0, decay=weightDecay, momentum=momentum, nesterov=True)
     model.compile(loss='categorical_crossentropy', 
             class_mode='categorical', 
             optimizer=sgd)
@@ -339,30 +315,129 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Do training
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    for epoch in range(args.nEpochs):
-        logger.info('starting training epoch %d' % epoch);
+    for epoch in range(nEpochs):
+        logger.info('starting training epoch %d (of %d)' % (epoch, nEpochs));
         acc, loss = _train_one_epoch(logger, model, Xtrain, Ytrain, 
                                      omitLabels=[-1,],
-                                     nBatches=args.nBatches)
+                                     nBatches=maxMbPerEpoch)
 
-        # save a snapshot of current model weights
-        weightFile = os.path.join(args.outDir, "weights_epoch_%03d.h5" % epoch)
-        if os.path.exists(weightFile):
-            os.remove(weightFile)
-        model.save_weights(weightFile)
+        if outDir: 
+            # save a snapshot of current model weights
+            weightFile = os.path.join(outDir, "weights_epoch_%03d.h5" % epoch) 
+            if os.path.exists(weightFile): 
+                os.remove(weightFile) 
+            model.save_weights(weightFile)
 
-        # also save accuracies (for diagnostic purposes)
-        accFile = os.path.join(args.outDir, 'acc_epoch_%03d.npy' % epoch)
-        np.save(accFile, acc)
+            # also save accuracies (for diagnostic purposes)
+            accFile = os.path.join(outDir, 'acc_epoch_%03d.npy' % epoch)
+            np.save(accFile, acc)
 
         # Evaluate performance on validation data.
         logger.info('epoch %d complete. validating...' % epoch)
         Prob, acc = _evaluate(logger, model, Xvalid, Yvalid, omitLabels=[-1,])
         logger.info('accuracy on validation data: %0.2f%%' % acc)
-        estFile = os.path.join(args.outDir, "validation_epoch_%03d.npy" % epoch)
-        np.save(estFile, Prob)
 
-        logger.info('Finished!')
+        if outDir: 
+            estFile = os.path.join(outDir, "validation_epoch_%03d.npy" % epoch)
+            np.save(estFile, Prob)
+
+
+    logger.info('Finished!')
+    return model
+
+
+
+#-------------------------------------------------------------------------------
+# Code for command-line interface
+#-------------------------------------------------------------------------------
+
+def _train_mode_args():
+    """Parses command line arguments for training a CNN.
+
+    Note that the variable names below need to align with the parameters
+    in train_model() in order to have any effect.
+    """
+
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--x-train', dest='emTrainFile', 
+		    type=str, required=True,
+		    help='Filename of the training volume (train mode)')
+    parser.add_argument('--y-train', dest='labelsTrainFile', 
+		    type=str, required=True,
+		    help='Filename of the training labels (train mode)')
+    parser.add_argument('--train-slices', dest='trainSlices', 
+		    type=str, default='', 
+		    help='(optional) limit to a subset of X/Y train')
+
+    parser.add_argument('--x-valid', dest='emValidFile', 
+		    type=str, required=True,
+		    help='Filename of the validation volume (train mode)')
+    parser.add_argument('--y-valid', dest='labelsValidFile', 
+		    type=str, required=True,
+		    help='Filename of the validation labels (train mode)')
+    parser.add_argument('--valid-slices', dest='validSlices', 
+		    type=str, default='', 
+		    help='(optional) limit to a subset of X/Y validation')
+
+    parser.add_argument('--omit-labels', dest='omitLabels', 
+		    type=str, default='[-1,]', 
+		    help='(optional) list of class labels to omit from training')
+    
+    parser.add_argument('--model', dest='model', 
+		    type=str, default='ciresan_n3',
+		    help='name of CNN model to use (python function)')
+    parser.add_argument('--num-epochs', dest='nEpochs', 
+		    type=int, default=30,
+		    help='number of training epochs')
+    parser.add_argument('--max-mb-per-epoch', dest='maxMbPerEpoch', 
+		    type=int, default=sys.maxint,
+		    help='maximum number of mini-batches to process each epoch')
+
+    parser.add_argument('--out-dir', dest='outDir', 
+		    type=str, default='', 
+		    help='directory where the trained file should be placed')
+
+    args = parser.parse_args()
+
+    # Map strings into python objects.  
+    # A little gross to use eval, but life is short.
+    str_to_obj = lambda x: eval(x) if x else []
+    
+    args.trainSlices = str_to_obj(args.trainSlices)
+    args.validSlices = str_to_obj(args.validSlices)
+    args.omitLabels = str_to_obj(args.omitLabels)
+    
+    return args
+
+
+
+if __name__ == "__main__":
+    args = _train_mode_args()
+
+    # Use command line args to override default args for train_model().
+    # Note to self: the first co_argcount varnames are the 
+    #               function's parameters.
+    dArgs = vars(args)
+    cmdLineArgs = {}
+    validArgs = train_model.__code__.co_varnames[0:train_model.__code__.co_argcount]
+    for key in dArgs:
+        if key in validArgs:
+            cmdLineArgs[key] = dArgs[key]
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # load training and validation volumes
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Xtrain = emlib.load_cube(args.emTrainFile, addChannel=True)
+    Ytrain = emlib.load_cube(args.labelsTrainFile, addChannel=False)
+        
+    Xvalid = emlib.load_cube(args.emValidFile, addChannel=True)
+    Yvalid = emlib.load_cube(args.labelsValidFile, addChannel=False)
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # do it
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    model = train_model(Xtrain, Ytrain, Xvalid, Yvalid, **cmdLineArgs)
 
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
