@@ -37,6 +37,7 @@ from PIL import Image
 
 from scipy.signal import convolve2d
 from scipy.io import loadmat
+from scipy.ndimage.morphology import distance_transform_edt as bwdist
 import h5py
 
 
@@ -183,6 +184,34 @@ def rescale_01(X, perChannel=True):
             xMax = np.max(X[:,c,...])
             Xout[:,c,:,:] = (X[:,c,...] - xMin) / (xMax - xMin)
         return Xout
+
+
+
+def interpolate_nn(X):
+    """Simple nearest-neighbor based interplolation.
+    Missing values will be replaced with the nearest non-missing value.
+    Here, "missing values" are defined as those < 0.
+
+      X : a tensor with dimensions:  (#slices, #classes, #rows, #cols)
+    """
+
+    Xout = np.zeros(X.shape, dtype=X.dtype)
+    Xi = np.zeros((Xout.shape[-2], Xout.shape[-1]), dtype=X.dtype)
+
+    for z in range(Xout.shape[0]): 
+        for c in range(Xout.shape[1]): 
+            Xi[:] = X[z,c,...] 
+            
+            # interpolate, if needed 
+            if np.any(Xi < 0): 
+                #pct =  1.0*np.sum(Xi<0) / Xi.size 
+                dist, nn = bwdist(Xi<0, return_indices=True) 
+                Xi[Xi<0] = Xi[nn[0][Xi<0], nn[1][Xi<0]]
+
+            Xout[z,c,...] = Xi
+
+    return Xout
+
 
 
 
