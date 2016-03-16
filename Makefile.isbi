@@ -11,7 +11,7 @@ OUT_DIR=./Models/ISBI2012
 # Use TRAIN_QUICK as a dry run to make sure training runs end-to-end; 
 # Use TRAIN_FULL if you want a reasonable model.
 # 
-TRAIN_QUICK=--num-mb-per-epoch 500 --num-epochs 1
+TRAIN_QUICK=--max-mb-per-epoch 500 --num-epochs 1
 TRAIN_FULL=--num-epochs 30
 TRAIN_FLAGS=$(TRAIN_FULL)
 
