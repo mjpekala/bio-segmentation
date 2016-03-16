@@ -157,11 +157,12 @@ def deploy_model(X, weightsFile,
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     logger.info('evaluating volume...')
     Prob = _evaluate(logger, model, X, evalPct=evalPct)
+    logger.info('Complete!')
 
     if outFile: 
         np.save(outFile, Prob) 
         scipy.io.savemat(outFile.replace('.npy', '.mat'), {'P' : Prob})
-        logger.info('Complete!  Probabilites stored in file %s' % outFile)
+        logger.info('Probabilites stored in file %s' % outFile)
 
     return Prob
 
