@@ -412,18 +412,20 @@ def _train_mode_args():
 
 
 
+def dict_subset(dictIn, keySubset):
+    """Returns a subdictionary of 
+    """
+    return {k : dictIn[k] for k in dictIn if k in keySubset}
+
+
 if __name__ == "__main__":
     args = _train_mode_args()
 
     # Use command line args to override default args for train_model().
     # Note to self: the first co_argcount varnames are the 
     #               function's parameters.
-    dArgs = vars(args)
-    cmdLineArgs = {}
     validArgs = train_model.__code__.co_varnames[0:train_model.__code__.co_argcount]
-    for key in dArgs:
-        if key in validArgs:
-            cmdLineArgs[key] = dArgs[key]
+    cmdLineArgs = dict_subset(vars(args), validArgs)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # load training and validation volumes
