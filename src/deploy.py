@@ -54,7 +54,7 @@ def _downsample_mask(X, pct):
 
 
 
-def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
+def _evaluate(model, X, log=None, batchSize=100, evalPct=1.0):
     """Evaluate model on held-out data.
 
     Returns:
@@ -73,7 +73,7 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
 
     # identify subset of volume to evaluate
     Mask = _downsample_mask(X, evalPct)
-    logger.info('after masking, will evaluate %0.2f%% of data' % (100.0*np.sum(Mask)/Mask.size))
+    if log: log.info('after masking, will evaluate %0.2f%% of data' % (100.0*np.sum(Mask)/Mask.size))
 
     # Create storage for class probabilities.
     # Note that we store all class probabilities, even if this
@@ -100,7 +100,7 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
         elapsed = (time.time() - startTime) / 60.0
         if (lastChatter+2) < elapsed:  
             lastChatter = elapsed
-            logger.info("  last pixel %s (%0.2f%% complete)" % (str(Idx[-1,:]), 100.*epochPct))
+            if log: log.info("  last pixel %s (%0.2f%% complete)" % (str(Idx[-1,:]), 100.*epochPct))
 
     return Prob
 
@@ -108,6 +108,7 @@ def _evaluate(logger, model, X, batchSize=100, evalPct=1.0):
 
 
 def deploy_model(X, weightsFile,
+                 log=None,
                  slices=[],
                  modelName='ciresan_n3',
                  evalPct=1.0,
@@ -115,20 +116,11 @@ def deploy_model(X, weightsFile,
     """ Applies a previously trained CNN to new data.
     """
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # setup logging and output directory
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    logger = logging.getLogger("deploy_model")
-    logger.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
-    ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
-    logger.addHandler(ch)
-
+    # Setup output file/dirctory
     if not outFile: 
-        logger.warning('No output file specified - are you sure this is what you want?')
+        if log: log.warning('No output file specified - are you sure this is what you want?')
     elif not os.path.exists(os.path.dirname(outFile)):
         os.makedirs(os.path.dirname(outFile))
-
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # preprocess data
@@ -139,13 +131,13 @@ def deploy_model(X, weightsFile,
     # rescale features to live in [0, 1]
     X = emlib.rescale_01(X, perChannel=True)
 
-    logger.info('X volume dimensions: %s' % str(X.shape))
-    logger.info('X values min/max:    %g, %g' % (np.min(X), np.max(X)))
+    if log: log.info('X volume dimensions: %s' % str(X.shape))
+    if log: log.info('X values min/max:    %g, %g' % (np.min(X), np.max(X)))
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # initialize CNN
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    logger.info('initializing CNN...')
+    if log: log.info('initializing CNN...')
     model = getattr(emm, modelName)() 
     model.compile(optimizer='sgd',   # not used, but required by keras
                   loss='categorical_crossentropy',
@@ -155,14 +147,14 @@ def deploy_model(X, weightsFile,
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Do it
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    logger.info('evaluating volume...')
-    Prob = _evaluate(logger, model, X, evalPct=evalPct)
-    logger.info('Complete!')
+    if log: log.info('evaluating volume...')
+    Prob = _evaluate(model, X, log=log, evalPct=evalPct)
+    if log: log.info('Complete!')
 
     if outFile: 
         np.save(outFile, Prob) 
         scipy.io.savemat(outFile.replace('.npy', '.mat'), {'P' : Prob})
-        logger.info('Probabilites stored in file %s' % outFile)
+        if log: log.info('Probabilites stored in file %s' % outFile)
 
     return Prob
 
@@ -219,15 +211,22 @@ def _deploy_mode_args():
 
 
 
-
 if __name__ == "__main__":
-    from train import dict_subset
+
+    # setup logging 
+    logger = logging.getLogger("deploy_model")
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setFormatter(logging.Formatter('[%(asctime)s:%(name)s:%(levelname)s]  %(message)s'))
+    logger.addHandler(ch)
+
 
     args = _deploy_mode_args()
 
     # Use command line args to override default args for train_model().
     # Note to self: the first co_argcount varnames are the 
     #               function's parameters.
+    from train import dict_subset
     validArgs = deploy_model.__code__.co_varnames[0:deploy_model.__code__.co_argcount]
     cmdLineArgs = dict_subset(vars(args), validArgs)
 
@@ -235,6 +234,6 @@ if __name__ == "__main__":
     X = emlib.load_cube(args.emFile)
 
     # do it
-    result = deploy_model(X, args.weightFile, **cmdLineArgs)
+    result = deploy_model(X, args.weightFile, log=logger, **cmdLineArgs)
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
