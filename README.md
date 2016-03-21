@@ -32,7 +32,7 @@ Note that training can take a long time; if you are running the code on a remote
     make -f Makefile.isbi deploy-sub
 ```
 
-Alternatively, there is a [simple example](./isbi2012_deploy.ipynb) in the form of a Jupyter notebook.
+Alternatively, there is a [simple example](./examples/isbi2012_deploy.ipynb) in the form of a Jupyter notebook.
 
 
 ## Comments About Performance
