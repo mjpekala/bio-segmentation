@@ -38,6 +38,8 @@ from PIL import Image
 from scipy.signal import convolve2d
 from scipy.io import loadmat
 from scipy.ndimage.morphology import distance_transform_edt as bwdist
+from scipy.ndimage.morphology import binary_dilation
+from scipy.ndimage.measurements import label as bwconncomp
 import h5py
 
 
@@ -293,22 +295,104 @@ def stratified_interior_pixel_generator(Y, borderSize, batchSize,
         yield Idx[ii:(ii+nRet)], (1.0*ii+nRet)/Idx.shape[0]
 
 
-        
-def region_sampling_pixel_generator(Y, borderSize, batchSize):
+ 
+def region_sampling_pixel_generator(Y, borderSize, batchSize,
+                                    dilateRadius=0,
+                                    omitLabels=[]):
     """Samples points based on presumed cellular region structure.
+
+    Zero values in Y are assumed to represent cell boundaries; non-zero values
+    are presumed to be interior.  This function will produce a set of
+    pixel indices with a roughly 50/50 split between cell interior and
+    boundaries.  Furthermore, the interior values will be split
+    approximately evenly across different cell interiors.
+
+    Note that unlike other pixel generators, this one may draw repeat samples
+    (in the case of cells with small interiors).
+
+    This is not particularly quick to run; however, the time it takes is
+    far outstripped by the time to run examples through the CNN...
     """
     [s,m,n] = Y.shape
     yAll = np.unique(Y)
     yAll = [y for y in yAll if y not in omitLabels]
-    assert(len(yAll) == 2);  # this is
+    assert(0 in yAll)
 
     # restrict the set of pixels under consideration.
-    bitMask = _make_border_mask(Y.shape, borderSize)
+    Mask = _make_border_mask(Y.shape, borderSize)
 
-    raise RuntimeError('not yet implemented')
+    def dilate_by(Img, radius):
+        "Dilates nonzero values in a 2d image"
+        assert(Img.ndim == 2)
+        if radius <= 0:
+            return Img
+        else:
+            # structural element. 
+            W = np.zeros((2*radius+1, 2*radius+1), dtype=bool)
+            W[radius, 0:] = True
+            W[0:, radius] = True
+            return binary_dilation(Img, W)
+
+    def sample_indices(tup, nSamps):
+        # This function exists mainly because of numpy's Byzantine
+        # alternative to matlab's find().
+        assert(len(tup)==2)
+        n = len(tup[0])
+        if n <= nSamps:
+            rows = np.random.choice(np.arange(n), size=nSamps, replace=True)
+        else:
+            rows = np.random.choice(np.arange(n), size=nSamps, replace=False)
+        Idx = np.array(tup).T
+        return Idx[rows,:]
 
 
+    # Determine pixels to sample on a per-slice basis
+    AllIndices = np.zeros((0,3), dtype=np.int32)
+    for z in range(Y.shape[0]):
+        Yi = Y[z,...]
+        if dilateRadius > 0:
+            Yi = (Yi == 0)            # temporarily make 0 foreground
+            Yi = dilate_by(Yi, dilateRadius)
+            Yi = np.logical_not(Yi)   # revert to 1 as foreground
 
+        Labels, nRegions = bwconncomp(Yi)
+
+        # Determine how many pixels to sample from each region
+        nBoundary = np.sum(Yi == 0)
+        nInterior = np.sum(Yi != 0)
+        if nInterior > nBoundary:
+            nPerRegion = int(np.floor(1.0*nBoundary / nRegions))
+        else:
+            raise RuntimeError('unexpected ratio of boundary to interior')
+
+        # sample from cell interiors 
+        for regionId in np.unique(Labels):
+            Bits = np.logical_and(Labels == regionId, Mask[z,...])
+            indices = sample_indices(Bits.nonzero(), nPerRegion)
+            zOnes = z*np.ones((indices.shape[0], 1), dtype=np.int32)
+            indices = np.concatenate((zOnes, indices), axis=1)
+            AllIndices = np.concatenate((AllIndices, indices), axis=0)
+
+        # also (fully) sample cell boundaries (membranes)
+        idx = (Y[z,...] == 0).nonzero()
+        rows = idx[0][:,np.newaxis]
+        cols = idx[1][:,np.newaxis]
+        zOnes = z * np.ones((len(idx[0]),1), dtype=np.int32)
+        indices = np.concatenate((zOnes, rows, cols), axis=1)
+        AllIndices = np.concatenate((AllIndices, indices), axis=0)
+        del idx, rows, cols, zOnes, indices
+
+        #print('[emlib]: finished sampling slice %d' % z)
+
+    # randomize example order
+    np.random.shuffle(AllIndices)
+
+    # return pixel indices one mini-batch at a time    
+    for ii in range(0, AllIndices.shape[0], batchSize):
+        nRet = min(batchSize, AllIndices.shape[0] - ii)
+        yield AllIndices[ii:(ii+nRet)], (1.0*ii+nRet)/AllIndices.shape[0]
+
+        
  
 def interior_pixel_generator(X, borderSize, batchSize,
                              mask=None,
