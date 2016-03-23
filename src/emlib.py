@@ -363,6 +363,8 @@ def region_sampling_pixel_generator(Y, borderSize, batchSize,
         if nInterior > nBoundary:
             nPerRegion = int(np.floor(1.0*nBoundary / nRegions))
         else:
+            # TODO: this is actually fine, just need to downsample positive class.
+            #       Implement this.
             raise RuntimeError('unexpected ratio of boundary to interior')
 
         # sample from cell interiors 
