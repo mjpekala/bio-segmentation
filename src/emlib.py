@@ -219,6 +219,30 @@ def interpolate_nn(X):
 # Functions for extracting tiles from images
 #-------------------------------------------------------------------------------
 
+def _make_border_mask(sz, borderSize, omitSlices=[]):
+    """ Creates a logical tensor of size
+    
+        (#slices, #rows, #colums)
+        
+    where 1/true is an "included" pixel, where "included" means
+      - not within borderSize pixels the edge of the xy plane
+      - not within a slice that is to be omitted.
+    """
+    [s,m,n] = sz
+    
+    bitMask = np.ones(sz, dtype=bool)
+    bitMask[omitSlices,:,:] = 0
+
+    if borderSize > 0: 
+        bitMask[:, 0:borderSize, :] = 0
+        bitMask[:, (m-borderSize):m, :] = 0
+        bitMask[:, :, 0:borderSize] = 0
+        bitMask[:, :, (n-borderSize):n] = 0
+
+    return bitMask
+
+
+
 def stratified_interior_pixel_generator(Y, borderSize, batchSize,
                                         mask=None,
                                         omitSlices=[],
@@ -236,16 +260,8 @@ def stratified_interior_pixel_generator(Y, borderSize, batchSize,
     yAll = [y for y in yAll if y not in omitLabels]
     assert(len(yAll) > 0)
 
-    # Used to restrict the set of pixels under consideration.
-    bitMask = np.ones(Y.shape, dtype=bool)
-    bitMask[omitSlices,:,:] = 0
-
-    if borderSize > 0: 
-        bitMask[:, 0:borderSize, :] = 0
-        bitMask[:, (m-borderSize):m, :] = 0
-        bitMask[:, :, 0:borderSize] = 0
-        bitMask[:, :, (n-borderSize):n] = 0
-
+    # restrict the set of pixels under consideration.
+    bitMask = _make_border_mask(Y.shape, borderSize, omitSlices)
     if mask is not None:
         bitMask = bitMask & mask
 
@@ -275,6 +291,22 @@ def stratified_interior_pixel_generator(Y, borderSize, batchSize,
     for ii in range(0, Idx.shape[0], batchSize):
         nRet = min(batchSize, Idx.shape[0] - ii)
         yield Idx[ii:(ii+nRet)], (1.0*ii+nRet)/Idx.shape[0]
+
+
+        
+def region_sampling_pixel_generator(Y, borderSize, batchSize):
+    """Samples points based on presumed cellular region structure.
+    """
+    [s,m,n] = Y.shape
+    yAll = np.unique(Y)
+    yAll = [y for y in yAll if y not in omitLabels]
+    assert(len(yAll) == 2);  # this is
+
+    # restrict the set of pixels under consideration.
+    bitMask = _make_border_mask(Y.shape, borderSize)
+
+    raise RuntimeError('not yet implemented')
+
 
 
  
@@ -315,13 +347,7 @@ def interior_pixel_generator(X, borderSize, batchSize,
 
     # Used to restrict the set of pixels under consideration.
     # Note that the number of channels plays no role here.
-    bitMask = np.ones([s,m,n], dtype=bool)
-    bitMask[omitSlices,:,:] = False
-
-    bitMask[:, 0:borderSize, :] = False
-    bitMask[:, (m-borderSize):m, :] = False
-    bitMask[:, :, 0:borderSize] = False
-    bitMask[:, :, (n-borderSize):n] = False
+    bitMask = _make_border_mask([s,m,n], borderSize, omitSlices)
     
     if mask is not None:
         assert(np.all(mask.shape == bitMask.shape))
