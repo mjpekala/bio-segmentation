@@ -299,6 +299,9 @@ def train_model(Xtrain, Ytrain,
         log.info('training volume dimensions:   %s' % str(Xtrain.shape))
         log.info('training values min/max:      %g, %g' % (np.min(Xtrain), np.max(Xtrain)))
         log.info('training class labels:        %s' % str(np.unique(Ytrain)))
+        for yi in np.unique(Ytrain):
+            cnt = np.sum(Ytrain == yi)
+            log.info('    class %d has %d instances' % (yi, cnt))
         log.info('')
         log.info('validation volume dimensions: %s' % str(Xvalid.shape))
         log.info('validation values min/max:    %g, %g' % (np.min(Xvalid), np.max(Xvalid)))
