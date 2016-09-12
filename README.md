@@ -39,6 +39,8 @@ Alternatively, there is a [simple example](./examples/isbi2012_deploy.ipynb) in 
 The sliding window approach to generating dense predictions worked well for the ISBI 2012 challenge problem; however, it is somewhat computationally expensive.  There are more sophisticated techniques for solving dense prediction problems that one might want to consider if you wish to do things "at scale".  We provide some simple downsampling capabilities that, in conjunction with some fast interpolation or inpainting techniques, can speed things up with relatively mild degradation of task performance (at least on ISBI 2012).  A (non-exhaustive) list of papers that provide some alternative (and more sophisticated) approaches to solving dense prediction problems is given below:
 
 
+- Sermanet, Pierre et al. "OverFeat: Integrated Recognition, Localization and Detection using Convolutional Networks." arXiv preprint arXiv:1312.6229 (2013).
+
 - Giusti, Alessandro, et al. "Fast image scanning with deep max-pooling convolutional neural networks." arXiv preprint arXiv:1302.1700 (2013).
 
 - Iandola et al. "DenseNet: Implementing Efficient ConvNet Descriptor Pyramids," Technical Report UC Berkeley, 2014.
