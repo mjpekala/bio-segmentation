@@ -8,7 +8,7 @@ Note: this code is in an experimental state and subject to change; it is made av
 
 ### Prerequisites
 
-This code requires you install [Keras](http://keras.io/) along with a suitable backend; we are using [Theano](http://deeplearning.net/software/theano/).  These packages are quite easy to install using pip; instructions are availble on the respective websites.
+This code requires you install [Keras](http://keras.io/) along with a suitable backend; we are using [Theano](http://deeplearning.net/software/theano/).  These packages are quite easy to install using pip; instructions are available on the respective websites.
 
 
 ### ISBI 2012 Example
@@ -50,3 +50,5 @@ The sliding window approach to generating dense predictions worked well for the 
 - Tschopp, Fabian. "Efficient Convolutional Neural Networks for Pixelwise Classification on Heterogeneous Hardware Systems." arXiv preprint arXiv:1509.03371 (2015).
 
 In terms of this particular implementation, as of this writing we have not (a) done any kind of sophisticated CNN design or hyperparameter optimization and (b) we are only using a single CNN (vs. the ensemble described in the primary reference).  Additionally, more recent efforts have improved upon the task performance of ISBI 2012.   You may want to take a look at papers written by those currently atop the ISBI 2012 leader board for inspiration.   At a minimum, you should be aware that the code in this repository provides a reasonable starting baseline as opposed to a state-of-the-art result.
+
+mjp, March 2016
