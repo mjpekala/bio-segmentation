@@ -518,7 +518,7 @@ class SimpleTileExtractor:
             self._Xb[jj, :, :, :] = self._X[ Idx[jj,0], :, a:b, c:d ]
 
             if self._Yb.size > 0: 
-                yj = self._Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ] 
+                yj = self._Y[ Idx[jj,0], Idx[jj,1], Idx[jj,2] ].astype(np.int)
                 # store the class label as a 1 hot vector
                 self._Yb[jj,:] = 0
                 self._Yb[jj,yj] = 1

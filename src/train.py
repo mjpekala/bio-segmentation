@@ -149,7 +149,7 @@ def _train_one_epoch(model, X, Y,
 
         # do training
         tic = time.time()
-        loss, acc = model.train_on_batch(Xi, Yi, accuracy=True)
+        loss, acc = model.train_on_batch(Xi, Yi)
         gpuTime += time.time() - tic
 
         accBuffer.append(acc);  lossBuffer.append(loss)
@@ -314,9 +314,7 @@ def train_model(Xtrain, Ytrain,
     if log: log.info('creating CNN')
     model = getattr(emm, modelName)() 
     sgd = SGD(lr=learnRate0, decay=weightDecay, momentum=momentum, nesterov=True)
-    model.compile(loss='categorical_crossentropy', 
-            class_mode='categorical', 
-            optimizer=sgd)
+    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Do training

@@ -150,8 +150,7 @@ def deploy_model(X, weightsFile,
     if log: log.info('initializing CNN...')
     model = getattr(emm, modelName)() 
     model.compile(optimizer='sgd',   # not used, but required by keras
-                  loss='categorical_crossentropy',
-                  class_mode='categorical')
+                  loss='categorical_crossentropy', metrics=['accuracy'])
     model.load_weights(weightsFile)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
