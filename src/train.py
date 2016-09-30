@@ -208,7 +208,9 @@ def _evaluate(model, X, Y, omitLabels=[], batchSize=100, log=None):
         n = Idx.shape[0]         # may be < batchSize on final iteration
         Xi = ste.extract(Idx)
         prob = model.predict_on_batch(Xi)
-        Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
+        # Note: it seems the Keras API has changed...
+        #Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
+        Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[:n,:]
 
     # Evaluate accuracy only on the subset of pixels that:
     #   o were actually provided to the CNN (not downsampled)

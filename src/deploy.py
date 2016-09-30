@@ -96,7 +96,9 @@ def _evaluate(model, X, log=None, batchSize=100, evalPct=1.0):
         n = Idx.shape[0] # may be < batchSize on final iteration
         Xi = ste.extract(Idx)
         prob = model.predict_on_batch(Xi)
-        Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
+        # updated based on Keras API changes
+        #Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[0][:n,:]
+        Prob[Idx[:,0], :, Idx[:,1], Idx[:,2]] = prob[:n,:]
 
         # notify user re. progress
         elapsed = (time.time() - startTime) / 60.0
