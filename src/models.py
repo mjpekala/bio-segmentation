@@ -1,7 +1,9 @@
-"""
+""" This module contains some CNN models.
 """
 
 __author__ = "mjp"
+__copyright__ = "Copyright 2016, JHU/APL"
+__license__ = "Apache 2.0"
 
 
 from keras.models import Sequential
@@ -13,8 +15,9 @@ from keras.layers.normalization import BatchNormalization
 
 def ciresan_n3(n=65, nOutput=2):
     """An approximation of the N3 network from [1].
-    Note that we also made a few small modifications along the way
-    (from Theano to caffe and now to tensorflow/keras).
+
+    Note that we also made a few small modifications to the network
+    along the way (from Theano to caffe and now to Theano+keras).
 
     As of this writing, no serious attempt has been made to optimize
     hyperparameters or structure of this network.
@@ -22,7 +25,11 @@ def ciresan_n3(n=65, nOutput=2):
     Parameters:
        n : The tile size (diameter) to use in the sliding window.
            Tiles are assumed to be square, hence only one parameter.
-    
+
+       nOutput : The CNN output size (number of classes)
+   
+
+    References:
     [1] Ciresan et al 'Deep neural networks segment neuronal membranes in
         electron microscopy images,' NIPS 2012.
     """
