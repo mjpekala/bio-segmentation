@@ -37,7 +37,13 @@ def ciresan_n3(n=65, nOutput=2):
     
     # input: nxn images with 1 channel -> (1, n, n) tensors.
     # this applies 48 convolution filters of size 5x5 each.
-    model.add(Convolution2D(48, 5, 5, border_mode='valid', input_shape=(1, n, n)))
+    # UPDATE: some systems evidently have a default dimension 
+    #         ordering which is not channel, height, width.
+    #         This will cause problems; therefore, force the
+    #         channel-first ordering using dim_ordering.
+    model.add(Convolution2D(48, 5, 5, border_mode='valid', 
+	      dim_ordering='th', 
+	      input_shape=(1, n, n)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2)))
     model.add(BatchNormalization())  # note: we used LRN previously...
