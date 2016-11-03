@@ -55,4 +55,4 @@ The sliding window approach to generating dense predictions worked well for the 
 
 In terms of this particular implementation, as of this writing we have not (a) done any kind of sophisticated CNN design or hyperparameter optimization and (b) we are only using a single CNN (vs. the ensemble described in the primary reference).  Additionally, more recent efforts have improved upon the task performance of ISBI 2012.   You may want to take a look at papers written by those currently atop the ISBI 2012 leader board for inspiration.   At a minimum, you should be aware that the code in this repository provides a reasonable starting baseline as opposed to a state-of-the-art result.
 
-mjp, March 2016
+mjp, October 2016
