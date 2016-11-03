@@ -6,6 +6,8 @@ Note: this code is in an experimental state and subject to change; it is made av
 
 ## Quick start
 
+**Update**: This latest version of the code has been updated based on changes to the Keras API.  The version in master should now be compatible with Keras 1.1.0.  However, at this point in time, you are probably better off using more modern methods for this type of problem (see references below).
+
 ### Prerequisites
 
 This code requires you install [Keras](http://keras.io/) along with a suitable backend; we are using [Theano](http://deeplearning.net/software/theano/).  These packages are quite easy to install using pip; instructions are available on the respective websites.
@@ -48,6 +50,8 @@ The sliding window approach to generating dense predictions worked well for the 
 - Long, Jonathan, Evan Shelhamer, and Trevor Darrell. "Fully convolutional networks for semantic segmentation." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2015.
 
 - Tschopp, Fabian. "Efficient Convolutional Neural Networks for Pixelwise Classification on Heterogeneous Hardware Systems." arXiv preprint arXiv:1509.03371 (2015).
+
+- Ronneberger, Fischer, Brox "U-Net: Convolutional Networks for Biomedical Image Segmentation." 2015. [link](https://arxiv.org/abs/1505.04597)
 
 In terms of this particular implementation, as of this writing we have not (a) done any kind of sophisticated CNN design or hyperparameter optimization and (b) we are only using a single CNN (vs. the ensemble described in the primary reference).  Additionally, more recent efforts have improved upon the task performance of ISBI 2012.   You may want to take a look at papers written by those currently atop the ISBI 2012 leader board for inspiration.   At a minimum, you should be aware that the code in this repository provides a reasonable starting baseline as opposed to a state-of-the-art result.
 
