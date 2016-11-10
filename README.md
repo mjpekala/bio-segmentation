@@ -1,10 +1,12 @@
 # Convolutional Neural Nets for Dense (per-pixel) Image Classification
 This repository provides simple examples of using deep networks to segment electron microscropy and other biological image data.  The basic approach is based on the sliding-window technique described in [this](http://papers.nips.cc/paper/4741-deep-neural-networks-segment-neuronal-membranes-in-electron-microscopy-images) NIPS 2013 paper by Dan Ciresan and others at IDSIA.  Note that while the sliding-window technique can provide reasonable results, it is not the only approach for this class of problems (and is fairly computationally inefficient; see notes below for more details).
 
-Note: this code is in an experimental state and subject to change; it is made available on an "as is" basis in the hope that it may be useful to others.  Use at your own risk :)
+**Update**: This approach is out-of-date; I recommend using a more modern method, e.g. one based on [semantic segmentation](https://github.com/mjpekala/bio-segmentation-dense).  At this point I consider this repository legacy work.
 
 
 ## Quick start
+
+Note: this code is in an experimental state and subject to change; it is made available on an "as is" basis in the hope that it may be useful to others.  Use at your own risk :)
 
 **Update**: This latest version of the code has been updated based on changes to the Keras API.  The version in master should now be compatible with Keras 1.1.0.  However, at this point in time, you are probably better off using more modern methods for this type of problem (see references below).
 
